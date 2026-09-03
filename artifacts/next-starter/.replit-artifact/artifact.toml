@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Blank Next.js Starter"
+description = "A blank Next.js starter project using TypeScript and the default starter template."
+version = "1.0.0"
+id = "artifacts/next-starter"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22169
+
+[services.development]
+run = "pnpm --filter @workspace/next-starter run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/next-starter", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/next-starter/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22169"
+BASE_PATH = "/"
