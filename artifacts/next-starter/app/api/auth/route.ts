@@ -19,6 +19,7 @@ function getClientKey(req: NextRequest): string {
 
 export async function POST(req: NextRequest) {
   console.log("AUTH ROUTE HIT");
+  console.log("PIN_HASH in use:", process.env.PIN_HASH);
   try {
     const clientKey = getClientKey(req);
     const now = Date.now();
