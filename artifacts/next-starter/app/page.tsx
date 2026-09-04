@@ -30,8 +30,8 @@ export default function LoginPage() {
       }
 
       router.push("/dashboard");
-    } catch {
-      setError("Network error. Try again.");
+    } catch (err) {
+      setError(`Debug: ${err instanceof Error ? err.message : String(err)}`);
       setLoading(false);
     }
   }

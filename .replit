@@ -23,5 +23,5 @@ timeoutMs = 20000
 packages = ["psmisc"]
 
 [[ports]]
-localPort = 22169
+localPort = 3000
 externalPort = 80
