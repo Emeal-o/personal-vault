@@ -1,0 +1,1 @@
+- [Managed artifact workflow cleanup](managed-artifact-workflow-cleanup.md) — remove obsolete artifact services through validated manifests, then clear any orphaned processes.
