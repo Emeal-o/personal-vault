@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { pin } = await req.json();
+    console.log("PIN received:", JSON.stringify(pin));
 
     if (!pin || typeof pin !== "string") {
       return NextResponse.json({ error: "PIN is required." }, { status: 400 });

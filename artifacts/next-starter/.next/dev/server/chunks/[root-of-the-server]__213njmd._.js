@@ -106,6 +106,7 @@ async function POST(req) {
             });
         }
         const { pin } = await req.json();
+        console.log("PIN received:", JSON.stringify(pin));
         if (!pin || typeof pin !== "string") {
             return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$server$2e$js__$5b$app$2d$route$5d$__$28$ecmascript$29$__["NextResponse"].json({
                 error: "PIN is required."
