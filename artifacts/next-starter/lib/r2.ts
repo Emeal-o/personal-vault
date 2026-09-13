@@ -45,8 +45,11 @@ export async function getUploadUrl(key: string, expiresInSeconds = 300) {
 
 /**
  * Generates a short-lived presigned URL the browser can GET (download) from directly.
+ * 1 hour, not 5 minutes: this URL is fetched once when the file list loads and then
+ * sits in React state until the user acts on it (opening a row menu, picking a Move/Copy
+ * destination, unlocking a folder, etc.), which can easily exceed a 5-minute window.
  */
-export async function getDownloadUrl(key: string, expiresInSeconds = 300) {
+export async function getDownloadUrl(key: string, expiresInSeconds = 3600) {
   const command = new GetObjectCommand({
     Bucket: R2_BUCKET_NAME,
     Key: key,
@@ -75,4 +78,50 @@ export async function deleteObject(key: string) {
     Key: key,
   });
   await r2Client.send(command);
+}
+
+/**
+ * Directly uploads/writes an object server-side (e.g. small JSON metadata files).
+ * For actual file uploads from the browser, use getUploadUrl instead.
+ */
+export async function putObject(key: string, body: string, contentType: string) {
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  });
+  await r2Client.send(command);
+}
+
+/**
+ * Reads an object's raw bytes directly on the server, for streaming through
+ * our own same-origin API route rather than having the browser fetch() a
+ * third-party R2 URL directly (some mobile browsers/security software can
+ * silently block cross-origin fetch() to unfamiliar storage domains even
+ * when the URL, CORS policy, and everything else is correctly configured).
+ */
+export async function getObjectBytes(key: string): Promise<{ bytes: Uint8Array; contentType?: string }> {
+  const command = new GetObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: key,
+  });
+  const response = await r2Client.send(command);
+  if (!response.Body) throw new Error("Object has no body.");
+  const bytes = await response.Body.transformToByteArray();
+  return { bytes, contentType: response.ContentType };
+}
+
+/**
+ * Reads an object's body directly on the server (e.g. to parse small JSON metadata files).
+ * For serving files to the browser, use getDownloadUrl instead.
+ */
+export async function getObject(key: string): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: key,
+  });
+  const response = await r2Client.send(command);
+  const body = await response.Body!.transformToString();
+  return body;
 }

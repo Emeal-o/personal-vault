@@ -18,8 +18,6 @@ function getClientKey(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
-  console.log("AUTH ROUTE HIT");
-  console.log("PIN_HASH in use:", process.env.PIN_HASH);
   try {
     const clientKey = getClientKey(req);
     const now = Date.now();
@@ -34,7 +32,6 @@ export async function POST(req: NextRequest) {
     }
 
     const { pin } = await req.json();
-    console.log("PIN received:", JSON.stringify(pin));
 
     if (!pin || typeof pin !== "string") {
       return NextResponse.json({ error: "PIN is required." }, { status: 400 });
@@ -72,10 +69,6 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (err) {
-    console.error("AUTH ROUTE ERROR:", err);
-    return NextResponse.json(
-      { error: "Server error", debug: String(err) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

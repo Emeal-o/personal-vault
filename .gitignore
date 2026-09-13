@@ -1,3 +1,9 @@
+#Secret
+cookies.txt
+.env
+.env.local
+.env*.local
+
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
 # compiled output
@@ -47,3 +53,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+.next/
+**/.next/
