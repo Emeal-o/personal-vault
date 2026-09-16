@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/session";
-import { ensureFilesTable, insertFileRecord } from "@/lib/db";
+import { ensureFilesTable, ensureWebauthnTable, insertFileRecord } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   const authed = await isAuthenticated(req);
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
   }
 
   await ensureFilesTable();
+  await ensureWebauthnTable();
   await insertFileRecord({
     fileKey: key,
     folderId: folderId ?? null,

@@ -9,7 +9,10 @@ __turbopack_context__.s([
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/next@16.3.4_@types+node@20.19.43_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/next@16.3.4_@types+node@20.19.43_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/next@16.3.4_@types+node@20.19.43_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/next/navigation.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f40$simplewebauthn$2b$browser$40$14$2e$0$2e$0$2f$node_modules$2f40$simplewebauthn$2f$browser$2f$esm$2f$index$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$locals$3e$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/@simplewebauthn+browser@14.0.0/node_modules/@simplewebauthn/browser/esm/index.js [app-ssr] (ecmascript) <locals>");
+var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f40$simplewebauthn$2b$browser$40$14$2e$0$2e$0$2f$node_modules$2f40$simplewebauthn$2f$browser$2f$esm$2f$methods$2f$startAuthentication$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/@simplewebauthn+browser@14.0.0/node_modules/@simplewebauthn/browser/esm/methods/startAuthentication.js [app-ssr] (ecmascript)");
 "use client";
+;
 ;
 ;
 ;
@@ -39,7 +42,7 @@ function LockIcon({ color }) {
                 fill: "none"
             }, void 0, false, {
                 fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                lineNumber: 22,
+                lineNumber: 23,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("rect", {
@@ -53,7 +56,7 @@ function LockIcon({ color }) {
                 fill: "none"
             }, void 0, false, {
                 fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                lineNumber: 23,
+                lineNumber: 24,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("circle", {
@@ -63,7 +66,7 @@ function LockIcon({ color }) {
                 fill: color
             }, void 0, false, {
                 fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                lineNumber: 24,
+                lineNumber: 25,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
@@ -73,13 +76,13 @@ function LockIcon({ color }) {
                 strokeLinecap: "round"
             }, void 0, false, {
                 fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                lineNumber: 25,
+                lineNumber: 26,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/artifacts/next-starter/app/page.tsx",
-        lineNumber: 21,
+        lineNumber: 22,
         columnNumber: 5
     }, this);
 }
@@ -98,7 +101,7 @@ function BackspaceIcon({ color }) {
                 fill: "none"
             }, void 0, false, {
                 fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                lineNumber: 33,
+                lineNumber: 34,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
@@ -108,13 +111,36 @@ function BackspaceIcon({ color }) {
                 strokeLinecap: "round"
             }, void 0, false, {
                 fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                lineNumber: 40,
+                lineNumber: 41,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/artifacts/next-starter/app/page.tsx",
-        lineNumber: 32,
+        lineNumber: 33,
+        columnNumber: 5
+    }, this);
+}
+function FingerprintIcon({ color }) {
+    return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
+        width: "26",
+        height: "26",
+        viewBox: "0 0 24 24",
+        fill: "none",
+        children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
+            d: "M12 3a7 7 0 0 0-7 7v2c0 2.5-.5 4.5-1.5 6M12 3a7 7 0 0 1 7 7v1M12 6.5A5.5 5.5 0 0 0 6.5 12v1c0 2-.3 3.6-1 5M12 6.5A5.5 5.5 0 0 1 17.5 12v2c0 1 0 2 .3 3M9 12v.5c0 3-1 5.5-2.5 7.5M12 10a2 2 0 0 1 2 2v1c0 3 .5 5 1.5 7",
+            stroke: color,
+            strokeWidth: "1.5",
+            strokeLinecap: "round",
+            fill: "none"
+        }, void 0, false, {
+            fileName: "[project]/artifacts/next-starter/app/page.tsx",
+            lineNumber: 49,
+            columnNumber: 7
+        }, this)
+    }, void 0, false, {
+        fileName: "[project]/artifacts/next-starter/app/page.tsx",
+        lineNumber: 48,
         columnNumber: 5
     }, this);
 }
@@ -122,7 +148,14 @@ function LoginPage() {
     const [pin, setPin] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])("");
     const [error, setError] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])("");
     const [loading, setLoading] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [biometricAvailable, setBiometricAvailable] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [biometricLoading, setBiometricLoading] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
     const router = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useRouter"])();
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        if ("TURBOPACK compile-time truthy", 1) return;
+        //TURBOPACK unreachable
+        ;
+    }, []);
     async function handleSubmit() {
         if (!pin || loading) return;
         setError("");
@@ -148,6 +181,52 @@ function LoginPage() {
         } catch (err) {
             setError(`Debug: ${err instanceof Error ? err.message : String(err)}`);
             setLoading(false);
+        }
+    }
+    async function handleBiometricUnlock() {
+        if (biometricLoading || loading) return;
+        setError("");
+        setBiometricLoading(true);
+        try {
+            const optRes = await fetch("/api/webauthn/auth-options", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    scope: "global"
+                })
+            });
+            if (!optRes.ok) {
+                throw new Error("Biometric unlock isn't available right now.");
+            }
+            const options = await optRes.json();
+            const assertion = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f40$simplewebauthn$2b$browser$40$14$2e$0$2e$0$2f$node_modules$2f40$simplewebauthn$2f$browser$2f$esm$2f$methods$2f$startAuthentication$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["startAuthentication"])({
+                optionsJSON: options
+            });
+            const verifyRes = await fetch("/api/webauthn/auth-verify", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    scope: "global",
+                    response: assertion
+                })
+            });
+            if (!verifyRes.ok) {
+                const data = await verifyRes.json();
+                throw new Error(data.error || "Could not verify.");
+            }
+            router.push("/dashboard");
+        } catch (err) {
+            // A cancelled/failed OS biometric prompt throws NotAllowedError —
+            // treat that quietly rather than as a scary error.
+            const message = err instanceof Error ? err.message : String(err);
+            if (!message.toLowerCase().includes("notallowed")) {
+                setError(message);
+            }
+            setBiometricLoading(false);
         }
     }
     function pressDigit(digit) {
@@ -223,12 +302,12 @@ function LoginPage() {
                                 color: COLORS.brass
                             }, void 0, false, {
                                 fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                                lineNumber: 125,
+                                lineNumber: 195,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                            lineNumber: 113,
+                            lineNumber: 183,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -242,7 +321,7 @@ function LoginPage() {
                             children: "Personal Vault"
                         }, void 0, false, {
                             fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                            lineNumber: 127,
+                            lineNumber: 197,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -254,13 +333,13 @@ function LoginPage() {
                             children: "Enter your PIN to continue"
                         }, void 0, false, {
                             fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                            lineNumber: 138,
+                            lineNumber: 208,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                    lineNumber: 112,
+                    lineNumber: 182,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -286,13 +365,13 @@ function LoginPage() {
                             }
                         }, i, false, {
                             fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                            lineNumber: 153,
+                            lineNumber: 223,
                             columnNumber: 15
                         }, this);
                     })
                 }, void 0, false, {
                     fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                    lineNumber: 149,
+                    lineNumber: 219,
                     columnNumber: 9
                 }, this),
                 error && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -305,7 +384,7 @@ function LoginPage() {
                     children: error
                 }, void 0, false, {
                     fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                    lineNumber: 169,
+                    lineNumber: 239,
                     columnNumber: 11
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -328,7 +407,7 @@ function LoginPage() {
                                         }
                                     }, colIdx, false, {
                                         fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                                        lineNumber: 186,
+                                        lineNumber: 256,
                                         columnNumber: 26
                                     }, this);
                                 }
@@ -352,12 +431,12 @@ function LoginPage() {
                                             color: COLORS.muted
                                         }, void 0, false, {
                                             fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                                            lineNumber: 207,
+                                            lineNumber: 277,
                                             columnNumber: 23
                                         }, this)
                                     }, colIdx, false, {
                                         fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                                        lineNumber: 190,
+                                        lineNumber: 260,
                                         columnNumber: 21
                                     }, this);
                                 }
@@ -379,18 +458,18 @@ function LoginPage() {
                                     children: key
                                 }, colIdx, false, {
                                     fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                                    lineNumber: 212,
+                                    lineNumber: 282,
                                     columnNumber: 19
                                 }, this);
                             })
                         }, rowIdx, false, {
                             fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                            lineNumber: 183,
+                            lineNumber: 253,
                             columnNumber: 13
                         }, this))
                 }, void 0, false, {
                     fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                    lineNumber: 181,
+                    lineNumber: 251,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -411,18 +490,52 @@ function LoginPage() {
                     children: loading ? "Verifying..." : "Unlock"
                 }, void 0, false, {
                     fileName: "[project]/artifacts/next-starter/app/page.tsx",
-                    lineNumber: 237,
+                    lineNumber: 307,
                     columnNumber: 9
+                }, this),
+                biometricAvailable && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                    onClick: handleBiometricUnlock,
+                    disabled: biometricLoading || loading,
+                    style: {
+                        marginTop: "0.9rem",
+                        width: "100%",
+                        padding: "0.85rem",
+                        fontSize: "0.95rem",
+                        borderRadius: "999px",
+                        border: `1px solid ${COLORS.elevated}`,
+                        background: "transparent",
+                        color: biometricLoading ? COLORS.muted : COLORS.text,
+                        fontWeight: 600,
+                        cursor: biometricLoading || loading ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.6rem"
+                    },
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$3$2e$4_$40$types$2b$node$40$20$2e$19$2e$43_react$2d$dom$40$19$2e$2$2e$8_react$40$19$2e$2$2e$8_$5f$react$40$19$2e$2$2e$8$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(FingerprintIcon, {
+                            color: biometricLoading ? COLORS.muted : COLORS.brass
+                        }, void 0, false, {
+                            fileName: "[project]/artifacts/next-starter/app/page.tsx",
+                            lineNumber: 347,
+                            columnNumber: 13
+                        }, this),
+                        biometricLoading ? "Waiting..." : "Use biometric unlock"
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/artifacts/next-starter/app/page.tsx",
+                    lineNumber: 327,
+                    columnNumber: 11
                 }, this)
             ]
         }, void 0, true, {
             fileName: "[project]/artifacts/next-starter/app/page.tsx",
-            lineNumber: 111,
+            lineNumber: 181,
             columnNumber: 7
         }, this)
     }, void 0, false, {
         fileName: "[project]/artifacts/next-starter/app/page.tsx",
-        lineNumber: 99,
+        lineNumber: 169,
         columnNumber: 5
     }, this);
 }

@@ -74,6 +74,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../../app/api/auth/verify-pin/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/auth/verify-pin">> = Specific
+  const handler = {} as typeof import("../../../app/api/auth/verify-pin/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../../app/api/files/[key]/download/route.ts
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/files/[key]/download">> = Specific
@@ -159,6 +168,78 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/upload/confirm">> = Specific
   const handler = {} as typeof import("../../../app/api/upload/confirm/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../../app/api/webauthn/auth-options/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/webauthn/auth-options">> = Specific
+  const handler = {} as typeof import("../../../app/api/webauthn/auth-options/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../../app/api/webauthn/auth-verify/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/webauthn/auth-verify">> = Specific
+  const handler = {} as typeof import("../../../app/api/webauthn/auth-verify/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../../app/api/webauthn/folder-secret/fetch/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/webauthn/folder-secret/fetch">> = Specific
+  const handler = {} as typeof import("../../../app/api/webauthn/folder-secret/fetch/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../../app/api/webauthn/folder-secret/store/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/webauthn/folder-secret/store">> = Specific
+  const handler = {} as typeof import("../../../app/api/webauthn/folder-secret/store/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../../app/api/webauthn/register-options/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/webauthn/register-options">> = Specific
+  const handler = {} as typeof import("../../../app/api/webauthn/register-options/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../../app/api/webauthn/register-verify/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/webauthn/register-verify">> = Specific
+  const handler = {} as typeof import("../../../app/api/webauthn/register-verify/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../../app/api/webauthn/remove/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/webauthn/remove">> = Specific
+  const handler = {} as typeof import("../../../app/api/webauthn/remove/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../../app/api/webauthn/status/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/webauthn/status">> = Specific
+  const handler = {} as typeof import("../../../app/api/webauthn/status/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/session";
 import { deleteObject } from "@/lib/r2";
-import { deleteFileRecord, ensureFilesTable, renameFile, setFavorite, getFileMeta } from "@/lib/db";
+import { deleteFileRecord, ensureFilesTable, ensureWebauthnTable, renameFile, setFavorite, getFileMeta } from "@/lib/db";
 
 function folderIdFromKey(key: string): string | null {
   const match = key.match(/^folders\/([^/]+)\//);
@@ -56,6 +56,7 @@ export async function PATCH(
   }
 
   await ensureFilesTable();
+  await ensureWebauthnTable();
   const folderId = folderIdFromKey(decodedKey);
 
   if (displayName !== undefined) {

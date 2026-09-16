@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { encryptBlob, decryptBlob, encryptText, decryptText } from "@/lib/crypto";
+import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
+import { wrapPassphraseWithPrf, unwrapPassphraseWithPrf, prfSaltToBytes, normalizePrfSecret } from "@/lib/prfCrypto";
 
 interface VaultFile {
   key: string;
@@ -391,6 +393,14 @@ export default function Dashboard() {
   const [storage, setStorage] = useState<StorageSummary | null>(null);
   const [storageLoading, setStorageLoading] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const [biometricGlobalEnabled, setBiometricGlobalEnabled] = useState<boolean | null>(null);
+  const [biometricFolderEnabled, setBiometricFolderEnabled] = useState<Record<string, boolean>>({});
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const [biometricPinPrompt, setBiometricPinPrompt] = useState<{ scope: string; label: string; enabling: boolean } | null>(null);
+  const [biometricPinValue, setBiometricPinValue] = useState("");
+  const [biometricPinError, setBiometricPinError] = useState("");
+  const [unlockBiometricBusy, setUnlockBiometricBusy] = useState(false);
 
   const [renamingKey, setRenamingKey] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -952,6 +962,216 @@ export default function Dashboard() {
   function openSettings() {
     setShowSettings(true);
     fetchStorage();
+    fetchBiometricStatuses();
+  }
+
+  async function fetchBiometricStatuses() {
+    try {
+      const globalRes = await fetch("/api/webauthn/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "global" }),
+      });
+      const globalData = globalRes.ok ? await globalRes.json() : { enabled: false };
+      setBiometricGlobalEnabled(!!globalData.enabled);
+
+      const protectedFolders = folders.filter((f) => f.protected);
+      const results = await Promise.all(
+        protectedFolders.map(async (f) => {
+          const res = await fetch("/api/webauthn/status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scope: f.id }),
+          });
+          const data = res.ok ? await res.json() : { enabled: false };
+          return [f.id, !!data.enabled] as const;
+        })
+      );
+      setBiometricFolderEnabled(Object.fromEntries(results));
+    } catch {
+      // settings panel just won't show accurate biometric state
+    }
+  }
+
+  function requestBiometricToggle(scope: string, label: string, enabling: boolean) {
+    setBiometricPinPrompt({ scope, label, enabling });
+    setBiometricPinValue("");
+    setBiometricPinError("");
+  }
+
+  async function confirmBiometricToggle() {
+    if (!biometricPinPrompt) return;
+    const { scope, enabling } = biometricPinPrompt;
+
+    if (enabling && scope !== "global" && !unlockedPassphrases[scope]) {
+      setBiometricPinError("Unlock this folder first, then enable biometric for it.");
+      return;
+    }
+
+    setBiometricBusy(true);
+    setBiometricPinError("");
+    try {
+      const verifyRes = await fetch("/api/auth/verify-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: biometricPinValue }),
+      });
+      if (!verifyRes.ok) {
+        const data = await verifyRes.json();
+        throw new Error(data.error || "Incorrect PIN.");
+      }
+
+      if (!enabling) {
+        const res = await fetch("/api/webauthn/remove", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scope }),
+        });
+        if (!res.ok) throw new Error("Could not disable biometric.");
+        if (scope === "global") setBiometricGlobalEnabled(false);
+        else setBiometricFolderEnabled((prev) => ({ ...prev, [scope]: false }));
+        setBiometricPinPrompt(null);
+        setBiometricPinValue("");
+        return;
+      }
+
+      const optRes = await fetch("/api/webauthn/register-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope }),
+      });
+      if (!optRes.ok) throw new Error("Could not start biometric setup.");
+      const options = await optRes.json();
+
+      if (scope === "global") {
+        const attestation = await startRegistration({ optionsJSON: options });
+        const verifyRegRes = await fetch("/api/webauthn/register-verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scope, response: attestation }),
+        });
+        if (!verifyRegRes.ok) throw new Error("Could not verify device.");
+        setBiometricGlobalEnabled(true);
+      } else {
+        const prfSaltBytes = prfSaltToBytes(options.prfSalt);
+        const attestation = await startRegistration({
+          optionsJSON: { ...options, extensions: { prf: { eval: { first: prfSaltBytes } } } },
+        });
+
+        const prfEnabled = (attestation as any).clientExtensionResults?.prf?.enabled;
+        if (!prfEnabled) {
+          throw new Error("This device doesn't support the biometric extension this folder needs yet.");
+        }
+
+        const verifyRegRes = await fetch("/api/webauthn/register-verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scope, response: attestation }),
+        });
+        if (!verifyRegRes.ok) throw new Error("Could not verify device.");
+
+        try {
+          const authOptRes = await fetch("/api/webauthn/auth-options", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scope }),
+          });
+          if (!authOptRes.ok) throw new Error("Could not finish biometric setup.");
+          const authOptions = await authOptRes.json();
+          const authPrfSaltBytes = prfSaltToBytes(authOptions.prfSalt);
+
+          const assertion = await startAuthentication({
+            optionsJSON: { ...authOptions, extensions: { prf: { eval: { first: authPrfSaltBytes } } } },
+          });
+
+          const prfSecret = normalizePrfSecret((assertion as any).clientExtensionResults?.prf?.results?.first);
+          if (!prfSecret) {
+            throw new Error("Couldn't retrieve the biometric key from this device.");
+          }
+
+          const { wrapped, iv } = await wrapPassphraseWithPrf(unlockedPassphrases[scope], prfSecret);
+
+          const storeRes = await fetch("/api/webauthn/folder-secret/store", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scope, wrapped, iv }),
+          });
+          if (!storeRes.ok) throw new Error("Could not save the folder key.");
+
+          setBiometricFolderEnabled((prev) => ({ ...prev, [scope]: true }));
+        } catch (innerErr) {
+          await fetch("/api/webauthn/remove", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scope }),
+          }).catch(() => {});
+          throw innerErr;
+        }
+      }
+
+      setBiometricPinPrompt(null);
+      setBiometricPinValue("");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      setBiometricPinError(message.toLowerCase().includes("notallowed") ? "Cancelled." : message);
+    } finally {
+      setBiometricBusy(false);
+    }
+  }
+
+  async function handleBiometricFolderUnlock() {
+    if (!unlockTarget) return;
+    setUnlockBiometricBusy(true);
+    setUnlockError("");
+    try {
+      const optRes = await fetch("/api/webauthn/auth-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: unlockTarget.id }),
+      });
+      if (!optRes.ok) throw new Error("Biometric not available for this folder.");
+      const options = await optRes.json();
+      const prfSaltBytes = prfSaltToBytes(options.prfSalt);
+
+      const assertion = await startAuthentication({
+        optionsJSON: { ...options, extensions: { prf: { eval: { first: prfSaltBytes } } } },
+      });
+
+      const prfSecret = normalizePrfSecret((assertion as any).clientExtensionResults?.prf?.results?.first);
+      if (!prfSecret) {
+        throw new Error("This device doesn't support biometric folder unlock.");
+      }
+
+      const verifyRes = await fetch("/api/webauthn/auth-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: unlockTarget.id, response: assertion }),
+      });
+      if (!verifyRes.ok) throw new Error("Could not verify.");
+
+      const secretRes = await fetch("/api/webauthn/folder-secret/fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: unlockTarget.id }),
+      });
+      if (!secretRes.ok) throw new Error("Could not retrieve folder key.");
+      const { wrapped, iv } = await secretRes.json();
+
+      const passphrase = await unwrapPassphraseWithPrf(wrapped, iv, prfSecret);
+
+      setUnlockedFolders((prev) => new Set(prev).add(unlockTarget.id));
+      setUnlockedPassphrases((prev) => ({ ...prev, [unlockTarget.id]: passphrase }));
+      setView(unlockTarget);
+      setUnlockTarget(null);
+      setUnlockPassphrase("");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Biometric unlock failed.";
+      if (!message.toLowerCase().includes("notallowed")) {
+        setUnlockError(message);
+      }
+    } finally {
+      setUnlockBiometricBusy(false);
+    }
   }
 
   function apiDownloadUrl(key: string) {
@@ -2381,6 +2601,25 @@ export default function Dashboard() {
               <KeyholeIcon unlocked={false} color={COLORS.brass} />
               <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600 }}>{unlockTarget.name}</h2>
             </div>
+            {biometricFolderEnabled[unlockTarget.id] && (
+              <button
+                onClick={handleBiometricFolderUnlock}
+                disabled={unlockBiometricBusy || unlocking}
+                style={{
+                  width: "100%",
+                  padding: "0.85rem",
+                  borderRadius: "999px",
+                  border: `1px solid ${COLORS.border}`,
+                  background: "transparent",
+                  color: COLORS.text,
+                  fontWeight: 600,
+                  cursor: unlockBiometricBusy || unlocking ? "not-allowed" : "pointer",
+                  marginBottom: "0.9rem",
+                }}
+              >
+                {unlockBiometricBusy ? "Waiting..." : "Use biometric unlock"}
+              </button>
+            )}
             <input
               type="password"
               autoComplete="off"
@@ -2842,12 +3081,147 @@ export default function Dashboard() {
               <p style={{ color: COLORS.muted, fontSize: "0.85rem" }}>Couldn't load storage usage.</p>
             )}
 
+            <p style={{ margin: "1.5rem 0 0.6rem", fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.06em", color: COLORS.muted, textTransform: "uppercase" }}>
+              Security
+            </p>
+
+            <div style={{ borderRadius: "20px", background: COLORS.surface, overflow: "hidden", marginBottom: "1rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.85rem",
+                  padding: "0.95rem 1.1rem",
+                  borderBottom: folders.some((f) => f.protected) ? `1px solid ${COLORS.border}` : "none",
+                }}
+              >
+                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: COLORS.elevated, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <VaultDialIcon color={COLORS.muted} />
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: "0.92rem", fontWeight: 500, color: COLORS.text }}>Biometric unlock</p>
+                  <p style={{ margin: "0.1rem 0 0", fontSize: "0.78rem", color: COLORS.muted }}>Use fingerprint or face instead of your PIN</p>
+                </div>
+                <button
+                  onClick={() => requestBiometricToggle("global", "vault PIN", !biometricGlobalEnabled)}
+                  disabled={biometricGlobalEnabled === null}
+                  style={{
+                    width: "46px",
+                    height: "26px",
+                    borderRadius: "999px",
+                    border: "none",
+                    background: biometricGlobalEnabled ? COLORS.sage : COLORS.elevated,
+                    position: "relative",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    opacity: biometricGlobalEnabled === null ? 0.5 : 1,
+                  }}
+                  aria-label="Toggle biometric unlock for vault PIN"
+                >
+                  <div style={{ position: "absolute", top: "3px", left: biometricGlobalEnabled ? "23px" : "3px", width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transition: "left 0.15s ease" }} />
+                </button>
+              </div>
+
+              {folders.filter((f) => f.protected).map((f, i, arr) => (
+                <div
+                  key={f.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.85rem",
+                    padding: "0.95rem 1.1rem",
+                    borderBottom: i < arr.length - 1 ? `1px solid ${COLORS.border}` : "none",
+                  }}
+                >
+                  <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: `${COLORS.brass}1F`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <KeyholeIcon unlocked={false} color={COLORS.brass} />
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{ margin: 0, fontSize: "0.92rem", fontWeight: 500, color: COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {f.name}
+                    </p>
+                    <p style={{ margin: "0.1rem 0 0", fontSize: "0.78rem", color: COLORS.muted }}>
+                      {unlockedPassphrases[f.id] ? "Biometric for this folder" : "Unlock this folder first to enable"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => requestBiometricToggle(f.id, f.name, !biometricFolderEnabled[f.id])}
+                    disabled={!biometricFolderEnabled[f.id] && !unlockedPassphrases[f.id]}
+                    style={{
+                      width: "46px",
+                      height: "26px",
+                      borderRadius: "999px",
+                      border: "none",
+                      background: biometricFolderEnabled[f.id] ? COLORS.sage : COLORS.elevated,
+                      position: "relative",
+                      cursor: !biometricFolderEnabled[f.id] && !unlockedPassphrases[f.id] ? "not-allowed" : "pointer",
+                      flexShrink: 0,
+                      opacity: !biometricFolderEnabled[f.id] && !unlockedPassphrases[f.id] ? 0.5 : 1,
+                    }}
+                    aria-label={`Toggle biometric unlock for ${f.name}`}
+                  >
+                    <div style={{ position: "absolute", top: "3px", left: biometricFolderEnabled[f.id] ? "23px" : "3px", width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transition: "left 0.15s ease" }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
             <button
               onClick={() => setShowSettings(false)}
               style={{ width: "100%", padding: "0.85rem", borderRadius: "999px", background: COLORS.surface, border: "none", color: COLORS.text, fontWeight: 600, cursor: "pointer", marginTop: "0.5rem" }}
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Biometric PIN confirm modal */}
+      {biometricPinPrompt && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 60 }}
+          onClick={() => (biometricBusy ? null : setBiometricPinPrompt(null))}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: "500px", background: COLORS.elevated, borderTopLeftRadius: "20px", borderTopRightRadius: "20px", padding: "1.5rem", border: `1px solid ${COLORS.brass}55`, borderBottom: "none" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1rem" }}>
+              <VaultDialIcon color={COLORS.brass} />
+              <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600 }}>
+                {biometricPinPrompt.enabling ? "Enable" : "Disable"} biometric for {biometricPinPrompt.label}
+              </h2>
+            </div>
+            <p style={{ margin: "0 0 0.75rem", fontSize: "0.82rem", color: COLORS.muted }}>
+              Enter your PIN to confirm this change.
+            </p>
+            <input
+              type="password"
+              autoComplete="off"
+              placeholder="Enter PIN"
+              value={biometricPinValue}
+              onChange={(e) => setBiometricPinValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && confirmBiometricToggle()}
+              autoFocus
+              style={{ width: "100%", boxSizing: "border-box", padding: "0.75rem", borderRadius: "10px", border: `1px solid ${COLORS.border}`, background: COLORS.bg, color: COLORS.text, fontSize: "0.9rem", marginBottom: "0.75rem" }}
+            />
+            {biometricPinError && <p style={{ color: COLORS.danger, fontSize: "0.8rem" }}>{biometricPinError}</p>}
+            <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem" }}>
+              <button
+                onClick={() => setBiometricPinPrompt(null)}
+                disabled={biometricBusy}
+                style={{ flex: 1, padding: "0.75rem", borderRadius: "10px", background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.text, cursor: biometricBusy ? "not-allowed" : "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmBiometricToggle}
+                disabled={biometricBusy || !biometricPinValue}
+                style={{ flex: 1, padding: "0.75rem", borderRadius: "10px", background: COLORS.brass, color: "#000", border: "none", fontWeight: 600, cursor: biometricBusy || !biometricPinValue ? "not-allowed" : "pointer", opacity: biometricBusy || !biometricPinValue ? 0.6 : 1 }}
+              >
+                {biometricBusy ? "Confirming..." : "Confirm"}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { startAuthentication } from "@simplewebauthn/browser";
 
 const COLORS = {
   bg: "#000000",
@@ -42,11 +43,39 @@ function BackspaceIcon({ color }: { color: string }) {
   );
 }
 
+function FingerprintIcon({ color }: { color: string }) {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M12 3a7 7 0 0 0-7 7v2c0 2.5-.5 4.5-1.5 6M12 3a7 7 0 0 1 7 7v1M12 6.5A5.5 5.5 0 0 0 6.5 12v1c0 2-.3 3.6-1 5M12 6.5A5.5 5.5 0 0 1 17.5 12v2c0 1 0 2 .3 3M9 12v.5c0 3-1 5.5-2.5 7.5M12 10a2 2 0 0 1 2 2v1c0 3 .5 5 1.5 7"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
 export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.PublicKeyCredential) return;
+    fetch("/api/webauthn/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: "global" }),
+    })
+      .then((res) => (res.ok ? res.json() : { enabled: false }))
+      .then((data) => setBiometricAvailable(!!data.enabled))
+      .catch(() => setBiometricAvailable(false));
+  }, []);
 
   async function handleSubmit() {
     if (!pin || loading) return;
@@ -73,6 +102,47 @@ export default function LoginPage() {
     } catch (err) {
       setError(`Debug: ${err instanceof Error ? err.message : String(err)}`);
       setLoading(false);
+    }
+  }
+
+  async function handleBiometricUnlock() {
+    if (biometricLoading || loading) return;
+    setError("");
+    setBiometricLoading(true);
+
+    try {
+      const optRes = await fetch("/api/webauthn/auth-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "global" }),
+      });
+      if (!optRes.ok) {
+        throw new Error("Biometric unlock isn't available right now.");
+      }
+      const options = await optRes.json();
+
+      const assertion = await startAuthentication({ optionsJSON: options });
+
+      const verifyRes = await fetch("/api/webauthn/auth-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "global", response: assertion }),
+      });
+
+      if (!verifyRes.ok) {
+        const data = await verifyRes.json();
+        throw new Error(data.error || "Could not verify.");
+      }
+
+      router.push("/dashboard");
+    } catch (err) {
+      // A cancelled/failed OS biometric prompt throws NotAllowedError —
+      // treat that quietly rather than as a scary error.
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.toLowerCase().includes("notallowed")) {
+        setError(message);
+      }
+      setBiometricLoading(false);
     }
   }
 
@@ -252,6 +322,32 @@ export default function LoginPage() {
         >
           {loading ? "Verifying..." : "Unlock"}
         </button>
+
+        {biometricAvailable && (
+          <button
+            onClick={handleBiometricUnlock}
+            disabled={biometricLoading || loading}
+            style={{
+              marginTop: "0.9rem",
+              width: "100%",
+              padding: "0.85rem",
+              fontSize: "0.95rem",
+              borderRadius: "999px",
+              border: `1px solid ${COLORS.elevated}`,
+              background: "transparent",
+              color: biometricLoading ? COLORS.muted : COLORS.text,
+              fontWeight: 600,
+              cursor: biometricLoading || loading ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.6rem",
+            }}
+          >
+            <FingerprintIcon color={biometricLoading ? COLORS.muted : COLORS.brass} />
+            {biometricLoading ? "Waiting..." : "Use biometric unlock"}
+          </button>
+        )}
       </div>
     </div>
   );

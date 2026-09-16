@@ -1,5 +1,18 @@
 {
+  "/api/auth/verify-pin/route": "app/api/auth/verify-pin/route.js",
+  "/api/files/[key]/download/route": "app/api/files/[key]/download/route.js",
   "/api/files/route": "app/api/files/route.js",
+  "/api/folders/[id]/route": "app/api/folders/[id]/route.js",
+  "/api/folders/[id]/unlock/route": "app/api/folders/[id]/unlock/route.js",
   "/api/folders/route": "app/api/folders/route.js",
+  "/api/storage/route": "app/api/storage/route.js",
+  "/api/webauthn/auth-options/route": "app/api/webauthn/auth-options/route.js",
+  "/api/webauthn/auth-verify/route": "app/api/webauthn/auth-verify/route.js",
+  "/api/webauthn/folder-secret/fetch/route": "app/api/webauthn/folder-secret/fetch/route.js",
+  "/api/webauthn/folder-secret/store/route": "app/api/webauthn/folder-secret/store/route.js",
+  "/api/webauthn/register-options/route": "app/api/webauthn/register-options/route.js",
+  "/api/webauthn/register-verify/route": "app/api/webauthn/register-verify/route.js",
+  "/api/webauthn/status/route": "app/api/webauthn/status/route.js",
+  "/dashboard/page": "app/dashboard/page.js",
   "/page": "app/page.js"
 }

@@ -114,3 +114,122 @@ export async function searchFiles(query: string): Promise<FileRecord[]> {
     LIMIT 50
   `) as FileRecord[];
 }
+
+// --- WebAuthn (biometric unlock) ---
+//
+// One table serves both the main-PIN biometric toggle and every
+// per-folder biometric toggle. `scope` is either the literal string
+// "global" (main PIN) or a folder's id. A scope counts as
+// "biometric enabled" simply by having 1+ credential rows — there is
+// no separate boolean flag to keep in sync with reality.
+
+export interface WebauthnCredential {
+  credential_id: string;
+  scope: string;
+  public_key: string;
+  counter: number;
+  transports: string[];
+  created_at: string;
+}
+
+export async function ensureWebauthnTable(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS webauthn_credentials (
+      credential_id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL,
+      public_key TEXT NOT NULL,
+      counter BIGINT NOT NULL DEFAULT 0,
+      transports TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_webauthn_scope ON webauthn_credentials (scope)`;
+}
+
+export async function addCredential(record: {
+  credentialId: string;
+  scope: string;
+  publicKey: string;
+  counter: number;
+  transports?: string[];
+}): Promise<void> {
+  await sql`
+    INSERT INTO webauthn_credentials (credential_id, scope, public_key, counter, transports)
+    VALUES (${record.credentialId}, ${record.scope}, ${record.publicKey}, ${record.counter}, ${record.transports ?? []})
+  `;
+}
+
+export async function getCredentialsByScope(scope: string): Promise<WebauthnCredential[]> {
+  return (await sql`
+    SELECT * FROM webauthn_credentials WHERE scope = ${scope}
+  `) as WebauthnCredential[];
+}
+
+export async function isBiometricEnabled(scope: string): Promise<boolean> {
+  const rows = await getCredentialsByScope(scope);
+  return rows.length > 0;
+}
+
+export async function getCredentialById(credentialId: string): Promise<WebauthnCredential | null> {
+  const rows = (await sql`
+    SELECT * FROM webauthn_credentials WHERE credential_id = ${credentialId}
+  `) as WebauthnCredential[];
+  return rows[0] ?? null;
+}
+
+export async function updateCredentialCounter(credentialId: string, counter: number): Promise<void> {
+  await sql`
+    UPDATE webauthn_credentials SET counter = ${counter} WHERE credential_id = ${credentialId}
+  `;
+}
+
+export async function deleteCredentialsByScope(scope: string): Promise<void> {
+  await sql`DELETE FROM webauthn_credentials WHERE scope = ${scope}`;
+}
+
+// --- Folder biometric secrets (PRF-wrapped folder passphrases) ---
+//
+// The server only ever sees an opaque ciphertext + iv here. The key
+// that decrypts it is derived client-side from the WebAuthn PRF
+// extension's output and never touches the network or this table.
+
+export interface FolderBiometricSecret {
+  scope: string;
+  wrapped_secret: string;
+  iv: string;
+  created_at: string;
+}
+
+export async function ensureFolderBiometricSecretsTable(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS folder_biometric_secrets (
+      scope TEXT PRIMARY KEY,
+      wrapped_secret TEXT NOT NULL,
+      iv TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+}
+
+export async function setFolderBiometricSecret(
+  scope: string,
+  wrappedSecret: string,
+  iv: string
+): Promise<void> {
+  await sql`
+    INSERT INTO folder_biometric_secrets (scope, wrapped_secret, iv)
+    VALUES (${scope}, ${wrappedSecret}, ${iv})
+    ON CONFLICT (scope) DO UPDATE SET wrapped_secret = EXCLUDED.wrapped_secret, iv = EXCLUDED.iv
+  `;
+}
+
+export async function getFolderBiometricSecret(scope: string): Promise<FolderBiometricSecret | null> {
+  const rows = (await sql`
+    SELECT * FROM folder_biometric_secrets WHERE scope = ${scope}
+  `) as FolderBiometricSecret[];
+  return rows[0] ?? null;
+}
+
+export async function deleteFolderBiometricSecret(scope: string): Promise<void> {
+  await sql`DELETE FROM folder_biometric_secrets WHERE scope = ${scope}`;
+}
