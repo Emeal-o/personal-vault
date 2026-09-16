@@ -51,6 +51,7 @@ export async function wrapPassphraseWithPrf(
   prfSecret: ArrayBuffer
 ): Promise<{ wrapped: string; iv: string }> {
   const key = await deriveAesKey(prfSecret);
+  const iv = toArrayBuffer(crypto.getRandomValues(new Uint8Array(12)));
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     key,
