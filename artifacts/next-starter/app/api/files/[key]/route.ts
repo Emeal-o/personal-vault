@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/session";
 import { deleteObject } from "@/lib/r2";
-import { deleteFileRecord, ensureFilesTable, ensureWebauthnTable, renameFile, setFavorite, getFileMeta } from "@/lib/db";
+import { deleteFileRecord, ensureFilesTable, ensureWebauthnTable, renameFile, setFavorite, setFileTags, getFileMeta } from "@/lib/db";
 
 function folderIdFromKey(key: string): string | null {
   const match = key.match(/^folders\/([^/]+)\//);
@@ -49,9 +49,9 @@ export async function PATCH(
   const { key } = await params;
   const decodedKey = decodeURIComponent(key);
   const body = await req.json();
-  const { displayName, isFavorite } = body as { displayName?: string; isFavorite?: boolean };
+  const { displayName, isFavorite, tags } = body as { displayName?: string; isFavorite?: boolean; tags?: string[] };
 
-  if (displayName === undefined && isFavorite === undefined) {
+  if (displayName === undefined && isFavorite === undefined && tags === undefined) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
 
@@ -66,12 +66,9 @@ export async function PATCH(
     await renameFile(decodedKey, folderId, displayName.trim());
   }
 
-  if (isFavorite !== undefined) {
-    if (typeof isFavorite !== "boolean") {
-      return NextResponse.json({ error: "isFavorite must be a boolean." }, { status: 400 });
-    }
-
-    let nameForUpsert = typeof displayName === "string" ? displayName.trim() : undefined;
+  let nameForUpsert: string | undefined;
+  if (isFavorite !== undefined || tags !== undefined) {
+    nameForUpsert = typeof displayName === "string" ? displayName.trim() : undefined;
     if (!nameForUpsert) {
       try {
         const meta = await getFileMeta([decodedKey]);
@@ -83,8 +80,21 @@ export async function PATCH(
     if (!nameForUpsert) {
       nameForUpsert = fallbackDisplayName(decodedKey);
     }
+  }
 
-    await setFavorite(decodedKey, folderId, nameForUpsert, isFavorite);
+  if (isFavorite !== undefined) {
+    if (typeof isFavorite !== "boolean") {
+      return NextResponse.json({ error: "isFavorite must be a boolean." }, { status: 400 });
+    }
+    await setFavorite(decodedKey, folderId, nameForUpsert!, isFavorite);
+  }
+
+  if (tags !== undefined) {
+    if (!Array.isArray(tags) || !tags.every((t) => typeof t === "string")) {
+      return NextResponse.json({ error: "tags must be an array of strings." }, { status: 400 });
+    }
+    const cleaned = Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean))).slice(0, 20);
+    await setFileTags(decodedKey, folderId, nameForUpsert!, cleaned);
   }
 
   return NextResponse.json({ success: true });

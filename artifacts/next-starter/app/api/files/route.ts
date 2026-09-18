@@ -42,11 +42,11 @@ export async function GET(req: NextRequest) {
     .filter((obj) => folderId || !obj.Key?.startsWith("folders/"));
 
   const keys = filtered.map((obj) => obj.Key!).filter(Boolean);
-  let meta: Record<string, { displayName: string; isFavorite: boolean }> = {};
+  let meta: Record<string, { displayName: string; isFavorite: boolean; tags: string[] }> = {};
   try {
     meta = await getFileMeta(keys);
   } catch {
-    // Postgres unreachable — fall back to key-derived names client-side, favorites unavailable
+    // Postgres unreachable — fall back to key-derived names client-side, favorites/tags unavailable
   }
 
   const files = await Promise.all(
@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
       downloadUrl: await getDownloadUrl(obj.Key!),
       displayName: meta[obj.Key!]?.displayName || null,
       isFavorite: meta[obj.Key!]?.isFavorite || false,
+      tags: meta[obj.Key!]?.tags || [],
     }))
   );
 

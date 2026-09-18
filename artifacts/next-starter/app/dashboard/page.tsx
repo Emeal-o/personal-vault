@@ -12,6 +12,7 @@ interface VaultFile {
   downloadUrl: string;
   displayName?: string | null;
   isFavorite?: boolean;
+  tags?: string[];
 }
 
 interface FolderMeta {
@@ -271,6 +272,21 @@ function XIcon({ color }: { color: string }) {
   );
 }
 
+function TagIcon({ color, small }: { color: string; small?: boolean }) {
+  const size = small ? "13" : "16";
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M11.5 3h6a1 1 0 0 1 1 1v6a1 1 0 0 1-.29.71l-8.5 8.5a1 1 0 0 1-1.42 0l-6-6a1 1 0 0 1 0-1.42l8.5-8.5A1 1 0 0 1 11.5 3Z"
+        stroke={color}
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <circle cx="15.5" cy="7.5" r="1.4" fill={color} />
+    </svg>
+  );
+}
+
 function StarIcon({ filled, color, small }: { filled?: boolean; color: string; small?: boolean }) {
   const size = small ? "13" : "17";
   return (
@@ -430,6 +446,24 @@ export default function Dashboard() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
+  const [tagFilterResults, setTagFilterResults] = useState<SearchResult[]>([]);
+  const [tagFilterLoading, setTagFilterLoading] = useState(false);
+  const [tagEditorFile, setTagEditorFile] = useState<VaultFile | null>(null);
+  const [tagEditorTags, setTagEditorTags] = useState<string[]>([]);
+  const [tagEditorInput, setTagEditorInput] = useState("");
+  const [tagEditorSaving, setTagEditorSaving] = useState(false);
+
+  const [highlightedFileKey, setHighlightedFileKey] = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function flashHighlight(key: string) {
+    setHighlightedFileKey(key);
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    highlightTimeoutRef.current = setTimeout(() => setHighlightedFileKey(null), 2500);
+  }
+
   const inFolder = view !== "root";
   const currentFolderId = inFolder ? (view as FolderMeta).id : null;
   const currentFolderProtected = inFolder && (view as FolderMeta).protected;
@@ -502,6 +536,17 @@ export default function Dashboard() {
     }
   }, []);
 
+  const fetchAllTags = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tags");
+      if (!res.ok) return;
+      const data = await res.json();
+      setAllTags(data.tags || []);
+    } catch {
+      // silently ignore; tag filter row just won't show anything new
+    }
+  }, []);
+
   const fetchFiles = useCallback(async (folderId: string | null) => {
     setLoading(true);
     try {
@@ -541,7 +586,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchFolders();
-  }, [fetchFolders]);
+    fetchAllTags();
+  }, [fetchFolders, fetchAllTags]);
+
+  // Keep biometric-enabled status current for every folder (not just
+  // when Settings has been opened), so the unlock modal can show
+  // "Use biometric unlock" as soon as the folder list is known.
+  useEffect(() => {
+    fetchBiometricStatuses();
+  }, [folders]);
 
   useEffect(() => {
     fetchFiles(currentFolderId);
@@ -610,6 +663,53 @@ export default function Dashboard() {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
+  // Cross-folder tag filter — reuses the /api/search endpoint via ?tag=
+  useEffect(() => {
+    if (!activeTagFilter) {
+      setTagFilterResults([]);
+      return;
+    }
+    let cancelled = false;
+    setTagFilterLoading(true);
+    fetch(`/api/search?tag=${encodeURIComponent(activeTagFilter)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setTagFilterResults(data.results || []);
+      })
+      .catch(() => {
+        if (!cancelled) setTagFilterResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTagFilterLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTagFilter]);
+
+  useEffect(() => {
+    if (!highlightedFileKey) return;
+    const el = document.querySelector(`[data-file-key="${CSS.escape(highlightedFileKey)}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedFileKey, files]);
+
+  function handleTagResultClick(result: SearchResult) {
+    setActiveTagFilter(null);
+    setTagFilterResults([]);
+    if (result.folder_id) {
+      const folder = folders.find((f) => f.id === result.folder_id);
+      if (folder) {
+        openFolder(folder);
+        flashHighlight(result.file_key);
+        return;
+      }
+    }
+    setView("root");
+    flashHighlight(result.file_key);
+  }
+
   function openFolder(folder: FolderMeta) {
     if (folder.protected && !unlockedFolders.has(folder.id)) {
       setUnlockTarget(folder);
@@ -627,10 +727,12 @@ export default function Dashboard() {
       const folder = folders.find((f) => f.id === result.folder_id);
       if (folder) {
         openFolder(folder);
+        flashHighlight(result.file_key);
         return;
       }
     }
     setView("root");
+    flashHighlight(result.file_key);
   }
 
   async function handleUnlock() {
@@ -1212,6 +1314,46 @@ export default function Dashboard() {
     }
   }
 
+  // ---- Tags ----
+  function openTagEditor(file: VaultFile) {
+    setTagEditorFile(file);
+    setTagEditorTags(file.tags ?? []);
+    setTagEditorInput("");
+  }
+
+  function addTagFromInput() {
+    const t = tagEditorInput.trim();
+    if (!t) return;
+    setTagEditorTags((prev) => (prev.includes(t) || prev.length >= 20 ? prev : [...prev, t]));
+    setTagEditorInput("");
+  }
+
+  function removeTagFromEditor(tag: string) {
+    setTagEditorTags((prev) => prev.filter((t) => t !== tag));
+  }
+
+  async function saveTagEdits() {
+    if (!tagEditorFile) return;
+    setTagEditorSaving(true);
+    try {
+      const res = await fetch(`/api/files/${encodeURIComponent(tagEditorFile.key)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: tagEditorTags }),
+      });
+      if (!res.ok) throw new Error("Failed to update tags.");
+      const savedKey = tagEditorFile.key;
+      const savedTags = tagEditorTags;
+      setFiles((prev) => prev.map((f) => (f.key === savedKey ? { ...f, tags: savedTags } : f)));
+      fetchAllTags();
+      setTagEditorFile(null);
+    } catch {
+      setError("Failed to update tags.");
+    } finally {
+      setTagEditorSaving(false);
+    }
+  }
+
   async function bulkAddFavorites() {
     const keys = Array.from(selectedKeys).filter((k) => !isSecretFile(k));
     if (keys.length === 0) {
@@ -1648,6 +1790,90 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {!inFolder && allTags.length > 0 && (
+          <div style={{ marginBottom: "1.25rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem", overflowX: "auto", paddingBottom: "0.25rem" }}>
+              {allTags.map((tag) => {
+                const active = activeTagFilter === tag;
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => setActiveTagFilter(active ? null : tag)}
+                    style={{
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      padding: "0.4rem 0.75rem",
+                      borderRadius: "999px",
+                      border: `1px solid ${active ? COLORS.brass : COLORS.border}`,
+                      background: active ? `${COLORS.brass}1F` : COLORS.surface,
+                      color: active ? COLORS.brass : COLORS.text,
+                      fontSize: "0.78rem",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <TagIcon color={active ? COLORS.brass : COLORS.muted} small />
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+            {activeTagFilter && (
+              <div
+                style={{
+                  marginTop: "0.5rem",
+                  background: COLORS.elevated,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: "10px",
+                  overflow: "hidden",
+                  maxHeight: "260px",
+                  overflowY: "auto",
+                }}
+              >
+                {tagFilterLoading ? (
+                  <p style={{ margin: 0, padding: "0.75rem", fontSize: "0.8rem", color: COLORS.muted }}>{"Loading\u2026"}</p>
+                ) : tagFilterResults.length === 0 ? (
+                  <p style={{ margin: 0, padding: "0.75rem", fontSize: "0.8rem", color: COLORS.muted }}>No files with this tag.</p>
+                ) : (
+                  tagFilterResults.map((r) => {
+                    const folder = folders.find((f) => f.id === r.folder_id);
+                    return (
+                      <button
+                        key={r.file_key}
+                        onClick={() => handleTagResultClick(r)}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          width: "100%",
+                          padding: "0.65rem 0.85rem",
+                          background: "none",
+                          border: "none",
+                          borderBottom: `1px solid ${COLORS.border}`,
+                          color: COLORS.text,
+                          fontSize: "0.85rem",
+                          textAlign: "left",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {r.display_name}
+                        </span>
+                        <span style={{ fontSize: "0.7rem", color: COLORS.muted, flexShrink: 0, marginLeft: "0.5rem" }}>
+                          {folder ? folder.name : "General"}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Breadcrumb */}
         {inFolder && (
@@ -2134,6 +2360,7 @@ export default function Dashboard() {
               const stillDecrypting = currentFolderProtected && !src;
               const isSelected = selectedKeys.has(file.key);
               const isRenaming = renamingKey === file.key;
+              const isHighlighted = highlightedFileKey === file.key;
 
               return (
                 <div
@@ -2148,7 +2375,10 @@ export default function Dashboard() {
                     display: "flex",
                     alignItems: "center",
                     padding: "0.9rem 1.1rem",
-                    background: isSelected ? "rgba(52,199,89,0.12)" : "transparent",
+                    background: isSelected ? "rgba(52,199,89,0.12)" : isHighlighted ? "rgba(230,168,85,0.18)" : "transparent",
+                    outline: isHighlighted ? `2px solid ${COLORS.brass}` : "none",
+                    outlineOffset: "-2px",
+                    transition: "background 0.3s ease, outline 0.3s ease",
                     borderBottom: fileIdx < sortedFiles.length - 1 ? `1px solid ${COLORS.border}` : "none",
                     gap: "0.9rem",
                     userSelect: "none",
@@ -2291,6 +2521,7 @@ export default function Dashboard() {
               const showImage = isImageFile(file.key) && !!src;
               const stillDecrypting = currentFolderProtected && !src;
               const isSelected = selectedKeys.has(file.key);
+              const isHighlighted = highlightedFileKey === file.key;
 
               return (
                 <a
@@ -2310,7 +2541,8 @@ export default function Dashboard() {
                     borderRadius: "8px",
                     overflow: "hidden",
                     background: COLORS.surface,
-                    border: `1px solid ${isSelected ? COLORS.sage : COLORS.border}`,
+                    border: `2px solid ${isSelected ? COLORS.sage : isHighlighted ? COLORS.brass : COLORS.border}`,
+                    transition: "border 0.3s ease",
                     display: "block",
                     textDecoration: "none",
                     userSelect: "none",
@@ -2423,6 +2655,16 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => {
+                  openTagEditor(rowMenuFile);
+                  setRowMenuFile(null);
+                }}
+                style={sheetActionStyle(COLORS.text)}
+              >
+                <TagIcon color={COLORS.text} />
+                {rowMenuFile.tags && rowMenuFile.tags.length > 0 ? `Tags (${rowMenuFile.tags.length})` : "Add Tags"}
+              </button>
+              <button
+                onClick={() => {
                   openTransferModal("move", new Set([rowMenuFile.key]));
                   setRowMenuFile(null);
                 }}
@@ -2452,6 +2694,128 @@ export default function Dashboard() {
             </div>
             <button
               onClick={() => setRowMenuFile(null)}
+              style={{ width: "100%", padding: "0.75rem", borderRadius: "10px", background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.text, cursor: "pointer", marginTop: "0.75rem" }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tag editor sheet */}
+      {tagEditorFile && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 50 }}
+          onClick={() => setTagEditorFile(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: "500px", background: COLORS.elevated, borderTopLeftRadius: "20px", borderTopRightRadius: "20px", padding: "1.25rem", border: `1px solid ${COLORS.border}`, borderBottom: "none" }}
+          >
+            <p style={{ margin: "0 0 1rem", fontSize: "0.95rem", fontWeight: 600, color: COLORS.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {fileDisplayName(tagEditorFile)}
+            </p>
+            {tagEditorTags.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.75rem" }}>
+                {tagEditorTags.map((tag) => (
+                  <span
+                    key={tag}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      padding: "0.3rem 0.6rem",
+                      borderRadius: "999px",
+                      background: `${COLORS.brass}1F`,
+                      color: COLORS.brass,
+                      fontSize: "0.78rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {tag}
+                    <button
+                      onClick={() => removeTagFromEditor(tag)}
+                      style={{ display: "flex", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                    >
+                      <XIcon color={COLORS.brass} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+              <input
+                type="text"
+                placeholder="Add a tag..."
+                value={tagEditorInput}
+                onChange={(e) => setTagEditorInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addTagFromInput();
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  boxSizing: "border-box",
+                  padding: "0.6rem 0.75rem",
+                  borderRadius: "10px",
+                  border: `1px solid ${COLORS.border}`,
+                  background: COLORS.surface,
+                  color: COLORS.text,
+                  fontSize: "0.85rem",
+                }}
+              />
+              <button
+                onClick={addTagFromInput}
+                style={{ padding: "0 1rem", borderRadius: "10px", border: `1px solid ${COLORS.border}`, background: "none", color: COLORS.text, cursor: "pointer" }}
+              >
+                <CheckIcon color={COLORS.text} />
+              </button>
+            </div>
+            {allTags.filter((t) => !tagEditorTags.includes(t) && (!tagEditorInput.trim() || t.toLowerCase().includes(tagEditorInput.trim().toLowerCase()))).length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "1rem" }}>
+                {allTags
+                  .filter((t) => !tagEditorTags.includes(t) && (!tagEditorInput.trim() || t.toLowerCase().includes(tagEditorInput.trim().toLowerCase())))
+                  .slice(0, 8)
+                  .map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() => setTagEditorTags((prev) => (prev.length >= 20 ? prev : [...prev, tag]))}
+                      style={{
+                        padding: "0.3rem 0.6rem",
+                        borderRadius: "999px",
+                        border: `1px solid ${COLORS.border}`,
+                        background: "none",
+                        color: COLORS.muted,
+                        fontSize: "0.75rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+              </div>
+            )}
+            <button
+              onClick={saveTagEdits}
+              disabled={tagEditorSaving}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                borderRadius: "10px",
+                background: COLORS.brass,
+                border: "none",
+                color: "#000",
+                fontWeight: 600,
+                cursor: tagEditorSaving ? "default" : "pointer",
+                opacity: tagEditorSaving ? 0.7 : 1,
+              }}
+            >
+              {tagEditorSaving ? "Saving\u2026" : "Save"}
+            </button>
+            <button
+              onClick={() => setTagEditorFile(null)}
               style={{ width: "100%", padding: "0.75rem", borderRadius: "10px", background: "none", border: `1px solid ${COLORS.border}`, color: COLORS.text, cursor: "pointer", marginTop: "0.75rem" }}
             >
               Cancel

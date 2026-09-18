@@ -14,6 +14,7 @@ export interface FileRecord {
   size_bytes: number;
   created_at: string;
   is_favorite: boolean;
+  tags: string[];
 }
 
 export async function ensureFilesTable(): Promise<void> {
@@ -28,9 +29,11 @@ export async function ensureFilesTable(): Promise<void> {
     )
   `;
   await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN NOT NULL DEFAULT FALSE`;
+  await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`;
   await sql`CREATE INDEX IF NOT EXISTS idx_files_folder_id ON files (folder_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_files_display_name ON files (display_name)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_files_is_favorite ON files (is_favorite)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_files_tags ON files USING GIN (tags)`;
 }
 
 export async function insertFileRecord(record: {
@@ -78,6 +81,27 @@ export async function setFavorite(
   `;
 }
 
+export async function setFileTags(
+  fileKey: string,
+  folderId: string | null,
+  displayName: string,
+  tags: string[]
+): Promise<void> {
+  // Same upsert-in-case-of-a-pre-DB-file pattern as setFavorite.
+  await sql`
+    INSERT INTO files (file_key, folder_id, display_name, tags, size_bytes)
+    VALUES (${fileKey}, ${folderId}, ${displayName}, ${tags}, 0)
+    ON CONFLICT (file_key) DO UPDATE SET tags = EXCLUDED.tags
+  `;
+}
+
+export async function getAllTags(): Promise<string[]> {
+  const rows = (await sql`
+    SELECT DISTINCT unnest(tags) AS tag FROM files ORDER BY tag
+  `) as { tag: string }[];
+  return rows.map((r) => r.tag);
+}
+
 export async function getDisplayNames(keys: string[]): Promise<Record<string, string>> {
   if (keys.length === 0) return {};
   const rows = (await sql`
@@ -91,16 +115,17 @@ export async function getDisplayNames(keys: string[]): Promise<Record<string, st
 export interface FileMeta {
   displayName: string;
   isFavorite: boolean;
+  tags: string[];
 }
 
 export async function getFileMeta(keys: string[]): Promise<Record<string, FileMeta>> {
   if (keys.length === 0) return {};
   const rows = (await sql`
-    SELECT file_key, display_name, is_favorite FROM files WHERE file_key = ANY(${keys})
-  `) as { file_key: string; display_name: string; is_favorite: boolean }[];
+    SELECT file_key, display_name, is_favorite, tags FROM files WHERE file_key = ANY(${keys})
+  `) as { file_key: string; display_name: string; is_favorite: boolean; tags: string[] }[];
   const map: Record<string, FileMeta> = {};
   for (const row of rows) {
-    map[row.file_key] = { displayName: row.display_name, isFavorite: row.is_favorite };
+    map[row.file_key] = { displayName: row.display_name, isFavorite: row.is_favorite, tags: row.tags || [] };
   }
   return map;
 }
@@ -110,6 +135,15 @@ export async function searchFiles(query: string): Promise<FileRecord[]> {
   return (await sql`
     SELECT * FROM files
     WHERE display_name ILIKE ${pattern}
+    ORDER BY created_at DESC
+    LIMIT 50
+  `) as FileRecord[];
+}
+
+export async function searchFilesByTag(tag: string): Promise<FileRecord[]> {
+  return (await sql`
+    SELECT * FROM files
+    WHERE ${tag} = ANY(tags)
     ORDER BY created_at DESC
     LIMIT 50
   `) as FileRecord[];
