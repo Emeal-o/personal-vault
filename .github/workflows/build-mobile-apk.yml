@@ -1,0 +1,42 @@
+name: Build Vault Mobile APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "artifacts/mobile/**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./artifacts/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Sync Capacitor + build APK
+        run: npx cap sync android && cd android && chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Tag release
+        id: vars
+        run: echo "tag=v$(date +'%Y.%m.%d-%H%M')" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          files: artifacts/mobile/android/app/build/outputs/apk/debug/app-debug.apk
