@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 13, "column": 0}, "map": {"version":3,"sources":["file:///home/runner/workspace/artifacts/next-starter/app/favicon.ico.mjs%20(structured%20image%20object)"],"sourcesContent":["import src from \"IMAGE\";\nexport default { src, width: 256, height: 256 }\n"],"names":["src","width","height"],"mappings":";;;;AAAA;;uCACe;IAAEA,KAAAA,mKAAG;IAAEC,OAAO;IAAKC,QAAQ;AAAI"}},
-    {"offset": {"line": 27, "column": 0}, "map": {"version":3,"sources":["turbopack:///[project]/artifacts/next-starter/app/page.module.css [app-rsc] (css module)"],"sourcesContent":["__turbopack_context__.v({\n  \"code\": \"page-module__xIuOQG__code\",\n  \"ctas\": \"page-module__xIuOQG__ctas\",\n  \"intro\": \"page-module__xIuOQG__intro\",\n  \"logo\": \"page-module__xIuOQG__logo\",\n  \"main\": \"page-module__xIuOQG__main\",\n  \"page\": \"page-module__xIuOQG__page\",\n  \"primary\": \"page-module__xIuOQG__primary\",\n  \"secondary\": \"page-module__xIuOQG__secondary\",\n});\n"],"names":[],"mappings":"AAAA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA"}}]
-}
