@@ -6,6 +6,9 @@ import { startRegistration, startAuthentication } from "@simplewebauthn/browser"
 import { wrapPassphraseWithPrf, unwrapPassphraseWithPrf, prfSaltToBytes, normalizePrfSecret } from "@/lib/prfCrypto";
 import { isValidBase32Secret } from "@/lib/totp";
 import TotpDisplay from "@/components/TotpDisplay";
+import { Capacitor } from "@capacitor/core";
+import { BiometricAuth } from "@aparajita/capacitor-biometric-auth";
+import { SecureStorage } from "@aparajita/capacitor-secure-storage";
 
 interface VaultFile {
   key: string;
@@ -1077,6 +1080,10 @@ export default function Dashboard() {
     fetchBiometricStatuses();
   }
 
+  function nativeFolderBiometricKey(scope: string) {
+    return `folder-passphrase:${scope}`;
+  }
+
   async function fetchBiometricStatuses() {
     try {
       const globalRes = await fetch("/api/webauthn/status", {
@@ -1088,6 +1095,22 @@ export default function Dashboard() {
       setBiometricGlobalEnabled(!!globalData.enabled);
 
       const protectedFolders = folders.filter((f) => f.protected);
+
+      if (Capacitor.isNativePlatform()) {
+        const results = await Promise.all(
+          protectedFolders.map(async (f) => {
+            try {
+              const stored = await SecureStorage.get(nativeFolderBiometricKey(f.id));
+              return [f.id, typeof stored === "string" && !!stored] as const;
+            } catch {
+              return [f.id, false] as const;
+            }
+          })
+        );
+        setBiometricFolderEnabled(Object.fromEntries(results));
+        return;
+      }
+
       const results = await Promise.all(
         protectedFolders.map(async (f) => {
           const res = await fetch("/api/webauthn/status", {
@@ -1134,6 +1157,18 @@ export default function Dashboard() {
       }
 
       if (!enabling) {
+        if (Capacitor.isNativePlatform() && scope !== "global") {
+          try {
+            await SecureStorage.remove(nativeFolderBiometricKey(scope));
+          } catch {
+            // key may already be gone; disabling should still succeed
+          }
+          setBiometricFolderEnabled((prev) => ({ ...prev, [scope]: false }));
+          setBiometricPinPrompt(null);
+          setBiometricPinValue("");
+          return;
+        }
+
         const res = await fetch("/api/webauthn/remove", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1142,6 +1177,23 @@ export default function Dashboard() {
         if (!res.ok) throw new Error("Could not disable biometric.");
         if (scope === "global") setBiometricGlobalEnabled(false);
         else setBiometricFolderEnabled((prev) => ({ ...prev, [scope]: false }));
+        setBiometricPinPrompt(null);
+        setBiometricPinValue("");
+        return;
+      }
+
+      if (Capacitor.isNativePlatform() && scope !== "global") {
+        try {
+          await BiometricAuth.authenticate({
+            reason: "Confirm your identity to enable biometric unlock for this folder",
+            cancelTitle: "Cancel",
+            allowDeviceCredentials: true,
+          });
+        } catch {
+          throw new Error("Biometric confirmation was cancelled or failed.");
+        }
+        await SecureStorage.set(nativeFolderBiometricKey(scope), unlockedPassphrases[scope]);
+        setBiometricFolderEnabled((prev) => ({ ...prev, [scope]: true }));
         setBiometricPinPrompt(null);
         setBiometricPinValue("");
         return;
@@ -1235,6 +1287,34 @@ export default function Dashboard() {
     if (!unlockTarget) return;
     setUnlockBiometricBusy(true);
     setUnlockError("");
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await BiometricAuth.authenticate({
+          reason: "Unlock this folder",
+          cancelTitle: "Cancel",
+          allowDeviceCredentials: true,
+        });
+        const stored = await SecureStorage.get(nativeFolderBiometricKey(unlockTarget.id));
+        if (typeof stored !== "string" || !stored) {
+          throw new Error("Biometric unlock isn't set up for this folder on this device.");
+        }
+        setUnlockedFolders((prev) => new Set(prev).add(unlockTarget.id));
+        setUnlockedPassphrases((prev) => ({ ...prev, [unlockTarget.id]: stored }));
+        setView(unlockTarget);
+        setUnlockTarget(null);
+        setUnlockPassphrase("");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Biometric unlock failed.";
+        if (!message.toLowerCase().includes("cancel")) {
+          setUnlockError(message);
+        }
+      } finally {
+        setUnlockBiometricBusy(false);
+      }
+      return;
+    }
+
     try {
       const optRes = await fetch("/api/webauthn/auth-options", {
         method: "POST",
