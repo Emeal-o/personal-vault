@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { encryptBlob, decryptBlob, encryptText, decryptText } from "@/lib/crypto";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { wrapPassphraseWithPrf, unwrapPassphraseWithPrf, prfSaltToBytes, normalizePrfSecret } from "@/lib/prfCrypto";
+import { isValidBase32Secret } from "@/lib/totp";
+import TotpDisplay from "@/components/TotpDisplay";
 
 interface VaultFile {
   key: string;
@@ -30,6 +32,7 @@ interface SecretPayload {
   body?: string;
   username?: string;
   password?: string;
+  totpSecret?: string;
 }
 
 interface StorageFolder {
@@ -395,6 +398,7 @@ export default function Dashboard() {
   const [secretBody, setSecretBody] = useState("");
   const [secretUsername, setSecretUsername] = useState("");
   const [secretPassword, setSecretPassword] = useState("");
+  const [secretTotpSecret, setSecretTotpSecret] = useState("");
   const [savingSecret, setSavingSecret] = useState(false);
   const [secretError, setSecretError] = useState("");
 
@@ -956,6 +960,10 @@ export default function Dashboard() {
       setSecretError("Add a password.");
       return;
     }
+    if (secretKind === "login" && secretTotpSecret.trim() && !isValidBase32Secret(secretTotpSecret)) {
+      setSecretError("That authenticator secret doesn't look right (should be base32 — letters A-Z and digits 2-7).");
+      return;
+    }
 
     setSavingSecret(true);
     setSecretError("");
@@ -969,6 +977,7 @@ export default function Dashboard() {
               title: secretTitle.trim(),
               username: secretUsername,
               password: secretPassword,
+              ...(secretTotpSecret.trim() ? { totpSecret: secretTotpSecret.trim().replace(/\s/g, "") } : {}),
             };
 
       const encryptedBlob = await encryptText(JSON.stringify(payload), currentPassphrase);
@@ -1006,6 +1015,7 @@ export default function Dashboard() {
       setSecretBody("");
       setSecretUsername("");
       setSecretPassword("");
+      setSecretTotpSecret("");
       setShowPasswordGen(false);
     } catch (err) {
       setSecretError(err instanceof Error ? err.message : "Failed to save.");
@@ -2154,6 +2164,15 @@ export default function Dashboard() {
                             </button>
                           </div>
                         </div>
+
+                        {secret.totpSecret && (
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.15rem" }}>
+                            <span style={{ fontSize: "0.7rem", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                              2FA
+                            </span>
+                            <TotpDisplay secret={secret.totpSecret} />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2172,9 +2191,11 @@ export default function Dashboard() {
                 const src = fileSrc(file);
                 const showImage = isImageFile(file.key) && !!src;
                 return (
-                  <button
+                  <a
                     key={file.key}
-                    onClick={() => setRowMenuFile(file)}
+                    href={src || undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     style={{
                       flexShrink: 0,
                       width: "84px",
@@ -2184,7 +2205,7 @@ export default function Dashboard() {
                       gap: "0.4rem",
                       background: "none",
                       border: "none",
-                      cursor: "pointer",
+                      textDecoration: "none",
                       padding: 0,
                     }}
                   >
@@ -2209,6 +2230,31 @@ export default function Dashboard() {
                       <div style={{ position: "absolute", bottom: "4px", right: "4px" }}>
                         <StarIcon filled color={COLORS.brass} small />
                       </div>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setRowMenuFile(file);
+                        }}
+                        aria-label="More options"
+                        style={{
+                          position: "absolute",
+                          top: "4px",
+                          right: "4px",
+                          width: "22px",
+                          height: "22px",
+                          borderRadius: "50%",
+                          border: "none",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "rgba(0,0,0,0.55)",
+                          zIndex: 2,
+                        }}
+                      >
+                        <MoreIcon color="#fff" />
+                      </button>
                     </div>
                     <span
                       style={{
@@ -2222,7 +2268,7 @@ export default function Dashboard() {
                     >
                       {fileDisplayName(file)}
                     </span>
-                  </button>
+                  </a>
                 );
               })}
             </div>
@@ -3288,6 +3334,16 @@ export default function Dashboard() {
                     </button>
                   </div>
                 )}
+
+                <input
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  placeholder="Authenticator secret (optional)"
+                  value={secretTotpSecret}
+                  onChange={(e) => setSecretTotpSecret(e.target.value)}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "0.75rem", borderRadius: "10px", border: `1px solid ${COLORS.border}`, background: COLORS.bg, color: COLORS.text, fontSize: "0.9rem", fontFamily: FONT_MONO, marginBottom: "0.75rem" }}
+                />
               </>
             ) : (
               <textarea
