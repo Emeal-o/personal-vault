@@ -4,7 +4,11 @@ on:
   push:
     branches: [main]
     paths:
+<<<<<<< HEAD
+      - "mobile/**"
+=======
       - "artifacts/mobile/**"
+>>>>>>> f7941357e3b25bb5db738e1fde7fb14dee965dd5
   workflow_dispatch:
 
 jobs:
@@ -12,7 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+<<<<<<< HEAD
+        working-directory: ./mobile
+=======
         working-directory: ./artifacts/mobile
+>>>>>>> f7941357e3b25bb5db738e1fde7fb14dee965dd5
     steps:
       - uses: actions/checkout@v4
 
@@ -29,7 +37,11 @@ jobs:
         run: npm install
 
       - name: Sync Capacitor + build APK
+<<<<<<< HEAD
+        run: npx cap sync android && cd android && chmod +x gradlew && ./gradlew assembleDebug
+=======
         run: npx --yes --package=@capacitor/cli cap sync android && cd android && chmod +x gradlew && ./gradlew assembleDebug
+>>>>>>> f7941357e3b25bb5db738e1fde7fb14dee965dd5
 
       - name: Tag release
         id: vars
@@ -39,4 +51,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
+<<<<<<< HEAD
+          files: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+=======
           files: artifacts/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+>>>>>>> f7941357e3b25bb5db738e1fde7fb14dee965dd5
