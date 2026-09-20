@@ -55,4 +55,4 @@ Thumbs.db
 .local/
 
 .next/
-**/.next/
+**/.next/artifacts/mobile/package-lock.json
