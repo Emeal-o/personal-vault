@@ -29,7 +29,7 @@ jobs:
         run: npm install
 
       - name: Sync Capacitor + build APK
-        run: node_modules/.bin/cap sync android && cd android && chmod +x gradlew && ./gradlew assembleDebug
+        run: npx --yes --package=@capacitor/cli cap sync android && cd android && chmod +x gradlew && ./gradlew assembleDebug
 
       - name: Tag release
         id: vars
