@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1124.0",
+    "@capacitor/core": "^7.0.0",
+    "@aparajita/capacitor-biometric-auth": "^9.0.0",
+    "@aparajita/capacitor-secure-storage": "^7.0.0",
     "@aws-sdk/s3-request-presigner": "^3.1124.0",
     "@neondatabase/serverless": "^1.1.0",
     "@simplewebauthn/browser": "^14.0.0",
