@@ -1187,7 +1187,7 @@ export default function Dashboard() {
           await BiometricAuth.authenticate({
             reason: "Confirm your identity to enable biometric unlock for this folder",
             cancelTitle: "Cancel",
-            allowDeviceCredentials: true,
+            allowDeviceCredential: true,
           });
         } catch {
           throw new Error("Biometric confirmation was cancelled or failed.");
@@ -1293,7 +1293,7 @@ export default function Dashboard() {
         await BiometricAuth.authenticate({
           reason: "Unlock this folder",
           cancelTitle: "Cancel",
-          allowDeviceCredentials: true,
+          allowDeviceCredential: true,
         });
         const stored = await SecureStorage.get(nativeFolderBiometricKey(unlockTarget.id));
         if (typeof stored !== "string" || !stored) {
