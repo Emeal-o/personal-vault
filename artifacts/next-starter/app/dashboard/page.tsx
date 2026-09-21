@@ -1084,19 +1084,22 @@ export default function Dashboard() {
     return `folder-passphrase:${scope}`;
   }
 
+  function nativeGlobalBiometricKey() {
+    return "vault-pin:global";
+  }
+
   async function fetchBiometricStatuses() {
     try {
-      const globalRes = await fetch("/api/webauthn/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scope: "global" }),
-      });
-      const globalData = globalRes.ok ? await globalRes.json() : { enabled: false };
-      setBiometricGlobalEnabled(!!globalData.enabled);
-
       const protectedFolders = folders.filter((f) => f.protected);
 
       if (Capacitor.isNativePlatform()) {
+        try {
+          const stored = await SecureStorage.get(nativeGlobalBiometricKey());
+          setBiometricGlobalEnabled(typeof stored === "string" && !!stored);
+        } catch {
+          setBiometricGlobalEnabled(false);
+        }
+
         const results = await Promise.all(
           protectedFolders.map(async (f) => {
             try {
@@ -1110,6 +1113,14 @@ export default function Dashboard() {
         setBiometricFolderEnabled(Object.fromEntries(results));
         return;
       }
+
+      const globalRes = await fetch("/api/webauthn/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "global" }),
+      });
+      const globalData = globalRes.ok ? await globalRes.json() : { enabled: false };
+      setBiometricGlobalEnabled(!!globalData.enabled);
 
       const results = await Promise.all(
         protectedFolders.map(async (f) => {
@@ -1157,13 +1168,16 @@ export default function Dashboard() {
       }
 
       if (!enabling) {
-        if (Capacitor.isNativePlatform() && scope !== "global") {
+        if (Capacitor.isNativePlatform()) {
           try {
-            await SecureStorage.remove(nativeFolderBiometricKey(scope));
+            await SecureStorage.remove(
+              scope === "global" ? nativeGlobalBiometricKey() : nativeFolderBiometricKey(scope)
+            );
           } catch {
             // key may already be gone; disabling should still succeed
           }
-          setBiometricFolderEnabled((prev) => ({ ...prev, [scope]: false }));
+          if (scope === "global") setBiometricGlobalEnabled(false);
+          else setBiometricFolderEnabled((prev) => ({ ...prev, [scope]: false }));
           setBiometricPinPrompt(null);
           setBiometricPinValue("");
           return;
@@ -1177,6 +1191,23 @@ export default function Dashboard() {
         if (!res.ok) throw new Error("Could not disable biometric.");
         if (scope === "global") setBiometricGlobalEnabled(false);
         else setBiometricFolderEnabled((prev) => ({ ...prev, [scope]: false }));
+        setBiometricPinPrompt(null);
+        setBiometricPinValue("");
+        return;
+      }
+
+      if (Capacitor.isNativePlatform() && scope === "global") {
+        try {
+          await BiometricAuth.authenticate({
+            reason: "Confirm your identity to enable biometric unlock for your vault",
+            cancelTitle: "Cancel",
+            allowDeviceCredential: true,
+          });
+        } catch {
+          throw new Error("Biometric confirmation was cancelled or failed.");
+        }
+        await SecureStorage.set(nativeGlobalBiometricKey(), biometricPinValue);
+        setBiometricGlobalEnabled(true);
         setBiometricPinPrompt(null);
         setBiometricPinValue("");
         return;

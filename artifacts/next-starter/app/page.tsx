@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { startAuthentication } from "@simplewebauthn/browser";
+import { Capacitor } from "@capacitor/core";
+import { BiometricAuth } from "@aparajita/capacitor-biometric-auth";
+import { SecureStorage } from "@aparajita/capacitor-secure-storage";
+
+function nativeGlobalBiometricKey() {
+  return "vault-pin:global";
+}
 
 const COLORS = {
   bg: "#000000",
@@ -66,6 +73,12 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      SecureStorage.get(nativeGlobalBiometricKey())
+        .then((stored) => setBiometricAvailable(typeof stored === "string" && !!stored))
+        .catch(() => setBiometricAvailable(false));
+      return;
+    }
     if (typeof window === "undefined" || !window.PublicKeyCredential) return;
     fetch("/api/webauthn/status", {
       method: "POST",
@@ -109,6 +122,37 @@ export default function LoginPage() {
     if (biometricLoading || loading) return;
     setError("");
     setBiometricLoading(true);
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await BiometricAuth.authenticate({
+          reason: "Unlock your vault",
+          cancelTitle: "Cancel",
+          allowDeviceCredential: true,
+        });
+        const stored = await SecureStorage.get(nativeGlobalBiometricKey());
+        if (typeof stored !== "string" || !stored) {
+          throw new Error("Biometric unlock isn't set up on this device.");
+        }
+        const res = await fetch("/api/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: stored }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Could not unlock.");
+        }
+        router.push("/dashboard");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!message.toLowerCase().includes("cancel")) {
+          setError(message);
+        }
+        setBiometricLoading(false);
+      }
+      return;
+    }
 
     try {
       const optRes = await fetch("/api/webauthn/auth-options", {
