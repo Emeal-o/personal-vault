@@ -9,6 +9,7 @@ export interface FolderMetadata {
   deleteProtected?: boolean;
   deleteUsesUnlockPassphrase?: boolean;
   deletePassphraseHash?: string;
+  profileId?: string | null;
   createdAt: string;
 }
 

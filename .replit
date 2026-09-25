@@ -22,10 +22,6 @@ timeoutMs = 20000
 [nix]
 packages = ["psmisc"]
 
-[[ports]]
-localPort = 3000
-externalPort = 80
-
 [userenv]
 
 [userenv.shared]

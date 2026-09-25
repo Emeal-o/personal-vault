@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import bcrypt from 'bcryptjs';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is not set');
@@ -72,8 +73,6 @@ export async function setFavorite(
   displayName: string,
   isFavorite: boolean
 ): Promise<void> {
-  // Upserts like renameFile does, in case this file predates the DB index
-  // (e.g. an old pre-DB file that's never had a row written for it).
   await sql`
     INSERT INTO files (file_key, folder_id, display_name, is_favorite, size_bytes)
     VALUES (${fileKey}, ${folderId}, ${displayName}, ${isFavorite}, 0)
@@ -87,7 +86,6 @@ export async function setFileTags(
   displayName: string,
   tags: string[]
 ): Promise<void> {
-  // Same upsert-in-case-of-a-pre-DB-file pattern as setFavorite.
   await sql`
     INSERT INTO files (file_key, folder_id, display_name, tags, size_bytes)
     VALUES (${fileKey}, ${folderId}, ${displayName}, ${tags}, 0)
@@ -150,12 +148,6 @@ export async function searchFilesByTag(tag: string): Promise<FileRecord[]> {
 }
 
 // --- WebAuthn (biometric unlock) ---
-//
-// One table serves both the main-PIN biometric toggle and every
-// per-folder biometric toggle. `scope` is either the literal string
-// "global" (main PIN) or a folder's id. A scope counts as
-// "biometric enabled" simply by having 1+ credential rows — there is
-// no separate boolean flag to keep in sync with reality.
 
 export interface WebauthnCredential {
   credential_id: string;
@@ -222,10 +214,6 @@ export async function deleteCredentialsByScope(scope: string): Promise<void> {
 }
 
 // --- Folder biometric secrets (PRF-wrapped folder passphrases) ---
-//
-// The server only ever sees an opaque ciphertext + iv here. The key
-// that decrypts it is derived client-side from the WebAuthn PRF
-// extension's output and never touches the network or this table.
 
 export interface FolderBiometricSecret {
   scope: string;
@@ -266,4 +254,117 @@ export async function getFolderBiometricSecret(scope: string): Promise<FolderBio
 
 export async function deleteFolderBiometricSecret(scope: string): Promise<void> {
   await sql`DELETE FROM folder_biometric_secrets WHERE scope = ${scope}`;
+}
+
+// --- Profiles (organizational grouping for folders, optional per-profile PIN) ---
+//
+// A profile is a label, not an encryption boundary. Folders keep their own
+// independent passphrase/biometric protection regardless of which profile
+// they're assigned to (folder.profileId lives on the folder's own R2
+// metadata, in lib/folders.ts — not here). A profile's pin_hash is nullable:
+// null means the profile is open, no PIN required to view its folder list.
+// Creating a profile, removing a profile's PIN, and deleting a profile are
+// all gated by the separate MASTER_PIN_HASH env var at the route level —
+// this table has no knowledge of that check.
+
+export interface Profile {
+  id: string;
+  name: string;
+  avatar_id: string | null;
+  avatar_url: string | null;
+  pin_hash: string | null;
+  created_at: string;
+}
+
+export type SafeProfile = Omit<Profile, 'pin_hash'> & { hasPin: boolean };
+
+function toSafeProfile(p: Profile): SafeProfile {
+  const { pin_hash, ...rest } = p;
+  return { ...rest, hasPin: !!pin_hash };
+}
+
+export async function ensureProfilesTable(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS profiles (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      avatar_id TEXT,
+      avatar_url TEXT,
+      pin_hash TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_profiles_name ON profiles (name)`;
+}
+
+export function generateProfileId(): string {
+  return crypto.randomUUID();
+}
+
+export async function hashProfilePin(pin: string): Promise<string> {
+  return bcrypt.hash(pin, 10);
+}
+
+export async function verifyProfilePin(pin: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(pin, hash);
+}
+
+export async function createProfile(record: {
+  name: string;
+  avatarId?: string | null;
+  avatarUrl?: string | null;
+  pin?: string | null;
+}): Promise<SafeProfile> {
+  const id = generateProfileId();
+  const pinHash = record.pin ? await hashProfilePin(record.pin) : null;
+  const rows = (await sql`
+    INSERT INTO profiles (id, name, avatar_id, avatar_url, pin_hash)
+    VALUES (${id}, ${record.name}, ${record.avatarId ?? null}, ${record.avatarUrl ?? null}, ${pinHash})
+    RETURNING *
+  `) as Profile[];
+  return toSafeProfile(rows[0]);
+}
+
+export async function getProfiles(): Promise<SafeProfile[]> {
+  const rows = (await sql`
+    SELECT * FROM profiles ORDER BY created_at ASC
+  `) as Profile[];
+  return rows.map(toSafeProfile);
+}
+
+export async function getProfileById(id: string): Promise<Profile | null> {
+  const rows = (await sql`
+    SELECT * FROM profiles WHERE id = ${id}
+  `) as Profile[];
+  return rows[0] ?? null;
+}
+
+export async function updateProfileDetails(
+  id: string,
+  fields: { name?: string; avatarId?: string | null; avatarUrl?: string | null }
+): Promise<SafeProfile | null> {
+  const current = await getProfileById(id);
+  if (!current) return null;
+  const rows = (await sql`
+    UPDATE profiles SET
+      name = ${fields.name ?? current.name},
+      avatar_id = ${fields.avatarId !== undefined ? fields.avatarId : current.avatar_id},
+      avatar_url = ${fields.avatarUrl !== undefined ? fields.avatarUrl : current.avatar_url}
+    WHERE id = ${id}
+    RETURNING *
+  `) as Profile[];
+  return rows[0] ? toSafeProfile(rows[0]) : null;
+}
+
+export async function setProfilePin(id: string, pin: string): Promise<void> {
+  const hash = await hashProfilePin(pin);
+  await sql`UPDATE profiles SET pin_hash = ${hash} WHERE id = ${id}`;
+}
+
+export async function removeProfilePin(id: string): Promise<void> {
+  await sql`UPDATE profiles SET pin_hash = NULL WHERE id = ${id}`;
+}
+
+export async function deleteProfile(id: string): Promise<void> {
+  await sql`DELETE FROM profiles WHERE id = ${id}`;
 }
