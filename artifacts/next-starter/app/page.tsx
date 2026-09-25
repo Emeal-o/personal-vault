@@ -64,12 +64,21 @@ function FingerprintIcon({ color }: { color: string }) {
   );
 }
 
+// Suppresses the browser's native tap-highlight/focus ring, which
+// otherwise lingers on a pressed key after release — a PIN pad key
+// should never visibly "stay lit."
+const noNativeHighlight: React.CSSProperties = {
+  outline: "none",
+  WebkitTapHighlightColor: "transparent",
+};
+
 export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLoading, setBiometricLoading] = useState(false);
+  const [pressedKey, setPressedKey] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -180,8 +189,6 @@ export default function LoginPage() {
 
       router.push("/dashboard");
     } catch (err) {
-      // A cancelled/failed OS biometric prompt throws NotAllowedError —
-      // treat that quietly rather than as a scary error.
       const message = err instanceof Error ? err.message : String(err);
       if (!message.toLowerCase().includes("notallowed")) {
         setError(message);
@@ -300,44 +307,64 @@ export default function LoginPage() {
                   return <div key={colIdx} style={{ width: "72px", height: "72px" }} />;
                 }
                 if (key === "backspace") {
+                  const isPressed = pressedKey === "backspace";
                   return (
                     <button
                       key={colIdx}
-                      onClick={pressBackspace}
+                      onClick={(e) => {
+                        pressBackspace();
+                        e.currentTarget.blur();
+                      }}
+                      onPointerDown={() => setPressedKey("backspace")}
+                      onPointerUp={() => setPressedKey(null)}
+                      onPointerLeave={() => setPressedKey(null)}
+                      onPointerCancel={() => setPressedKey(null)}
                       aria-label="Backspace"
                       disabled={loading}
                       style={{
+                        ...noNativeHighlight,
                         width: "72px",
                         height: "72px",
                         borderRadius: "50%",
                         border: "none",
-                        background: "transparent",
+                        background: isPressed ? `${COLORS.muted}33` : "transparent",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         cursor: loading ? "not-allowed" : "pointer",
+                        transition: "background 130ms ease-out",
                       }}
                     >
                       <BackspaceIcon color={COLORS.muted} />
                     </button>
                   );
                 }
+                const isPressed = pressedKey === key;
                 return (
                   <button
                     key={colIdx}
-                    onClick={() => pressDigit(key)}
+                    onClick={(e) => {
+                      pressDigit(key);
+                      e.currentTarget.blur();
+                    }}
+                    onPointerDown={() => setPressedKey(key)}
+                    onPointerUp={() => setPressedKey(null)}
+                    onPointerLeave={() => setPressedKey(null)}
+                    onPointerCancel={() => setPressedKey(null)}
                     disabled={loading}
                     style={{
+                      ...noNativeHighlight,
                       width: "72px",
                       height: "72px",
                       borderRadius: "50%",
                       border: "none",
-                      background: COLORS.elevated,
+                      background: isPressed ? `${COLORS.brass}40` : COLORS.elevated,
                       color: COLORS.text,
                       fontSize: "1.6rem",
                       fontWeight: 500,
                       cursor: loading ? "not-allowed" : "pointer",
                       opacity: loading ? 0.5 : 1,
+                      transition: "background 130ms ease-out",
                     }}
                   >
                     {key}
@@ -352,6 +379,7 @@ export default function LoginPage() {
           onClick={handleSubmit}
           disabled={loading || !pin}
           style={{
+            ...noNativeHighlight,
             marginTop: "2rem",
             width: "100%",
             padding: "0.9rem",
@@ -372,6 +400,7 @@ export default function LoginPage() {
             onClick={handleBiometricUnlock}
             disabled={biometricLoading || loading}
             style={{
+              ...noNativeHighlight,
               marginTop: "0.9rem",
               width: "100%",
               padding: "0.85rem",
