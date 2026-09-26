@@ -31,6 +31,8 @@ export async function ensureFilesTable(): Promise<void> {
   `;
   await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN NOT NULL DEFAULT FALSE`;
   await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`;
+  await sql`ALTER TABLE files ADD COLUMN IF NOT EXISTS profile_id TEXT`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_files_profile_id ON files (profile_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_files_folder_id ON files (folder_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_files_display_name ON files (display_name)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_files_is_favorite ON files (is_favorite)`;
@@ -273,6 +275,8 @@ export interface Profile {
   avatar_id: string | null;
   avatar_url: string | null;
   pin_hash: string | null;
+  storage_limit_bytes: number | null;
+  quota_visible: boolean;
   created_at: string;
 }
 
@@ -295,6 +299,8 @@ export async function ensureProfilesTable(): Promise<void> {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_profiles_name ON profiles (name)`;
+  await sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS storage_limit_bytes BIGINT`;
+  await sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS quota_visible BOOLEAN NOT NULL DEFAULT FALSE`;
 }
 
 export function generateProfileId(): string {
@@ -367,4 +373,36 @@ export async function removeProfilePin(id: string): Promise<void> {
 
 export async function deleteProfile(id: string): Promise<void> {
   await sql`DELETE FROM profiles WHERE id = ${id}`;
+}
+
+export async function setProfileQuota(
+  id: string,
+  limitBytes: number | null
+): Promise<void> {
+  await sql`UPDATE profiles SET storage_limit_bytes = ${limitBytes} WHERE id = ${id}`;
+}
+
+export async function setProfileQuotaVisible(
+  id: string,
+  visible: boolean
+): Promise<void> {
+  await sql`UPDATE profiles SET quota_visible = ${visible} WHERE id = ${id}`;
+}
+
+export async function getProfileStorageUsedBytes(profileId: string): Promise<number> {
+  const rows = (await sql`
+    SELECT COALESCE(SUM(size_bytes), 0) AS total FROM files WHERE profile_id = ${profileId}
+  `) as { total: string }[];
+  return Number(rows[0]?.total ?? 0);
+}
+
+export async function setFileProfileId(fileKey: string, profileId: string | null): Promise<void> {
+  await sql`UPDATE files SET profile_id = ${profileId} WHERE file_key = ${fileKey}`;
+}
+
+export async function reassignFolderFilesProfile(
+  folderId: string,
+  profileId: string | null
+): Promise<void> {
+  await sql`UPDATE files SET profile_id = ${profileId} WHERE folder_id = ${folderId}`;
 }
