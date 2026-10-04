@@ -366,6 +366,53 @@ function PersonIcon({ color, size = 22, strokeWidth = 1.8 }: { color: string; si
   );
 }
 
+type JellySpringState = { value: number; velocity: number };
+
+function advanceJellySpring(spring: JellySpringState, target: number, stiffness: number, dampingRatio: number, seconds: number) {
+  const displacement = spring.value - target;
+  const frequency = Math.sqrt(stiffness);
+  if (dampingRatio === 1) {
+    const decay = Math.exp(-frequency * seconds);
+    const coefficient = spring.velocity + frequency * displacement;
+    spring.value = target + (displacement + coefficient * seconds) * decay;
+    spring.velocity = (spring.velocity - frequency * coefficient * seconds) * decay;
+    return;
+  }
+
+  const damping = dampingRatio * frequency;
+  const dampedFrequency = frequency * Math.sqrt(1 - dampingRatio * dampingRatio);
+  const decay = Math.exp(-damping * seconds);
+  const cosine = Math.cos(dampedFrequency * seconds);
+  const sine = Math.sin(dampedFrequency * seconds);
+  const positionCoefficient = (spring.velocity + damping * displacement) / dampedFrequency;
+  const velocityCoefficient = (damping * spring.velocity + stiffness * displacement) / dampedFrequency;
+  spring.value = target + decay * (displacement * cosine + positionCoefficient * sine);
+  spring.velocity = decay * (spring.velocity * cosine - velocityCoefficient * sine);
+}
+
+function jellyRubberBand(distance: number, dimension: number) {
+  if (distance === 0 || dimension <= 0) return 0;
+  const damped = (1 - 1 / (Math.abs(distance) * 0.14 / dimension + 1)) * dimension;
+  return distance < 0 ? -damped : damped;
+}
+
+function jellyPanelOffset(rawOffset: number, width: number) {
+  if (width <= 0 || rawOffset === 0) return 0;
+  const fraction = Math.max(-1, Math.min(1, rawOffset / width));
+  const x = Math.abs(fraction);
+  let low = 0;
+  let high = 1;
+  let parameter = x;
+  for (let i = 0; i < 10; i++) {
+    const bezierX = parameter * parameter * (3 * (1 - parameter) * 0.58 + parameter);
+    if (bezierX < x) low = parameter;
+    else high = parameter;
+    parameter = (low + high) / 2;
+  }
+  const eased = parameter * parameter * (3 * (1 - parameter) + parameter);
+  return (fraction < 0 ? -4 : 4) * eased;
+}
+
 function isImageFile(key: string) {
   return /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(key);
 }
@@ -521,70 +568,170 @@ export default function Dashboard() {
   const [showNavLabels, setShowNavLabels] = useState(true);
   const [activeNavTab, setActiveNavTab] = useState<"home" | "search" | "profile">("home");
   const lastScrollYRef = useRef(0);
-  const [dragTabIndex, setDragTabIndex] = useState<number | null>(null);
   const navBarRef = useRef<HTMLDivElement>(null);
   const navBtnRefs = useRef<(HTMLButtonElement | null)[]>([null, null, null, null]);
+  const navActiveItemRefs = useRef<(HTMLDivElement | null)[]>([null, null, null, null]);
   const pillRef = useRef<HTMLDivElement>(null);
+  const pillGlowRef = useRef<HTMLDivElement>(null);
   const amberRowRef = useRef<HTMLDivElement>(null);
-  const dragStartXRef = useRef<number | null>(null);
-  const dragMovedRef = useRef(false);
-  const draggingRef = useRef(false);
-
-  const physicsRef = useRef({ x: 0, v: 0, targetX: 0, width: 60, targetWidth: 60, raf: 0, lastTime: 0 });
+  const suppressNavClickRef = useRef(false);
+  const suppressNavClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const physicsRef = useRef({
+    position: { value: 0, velocity: 0 },
+    positionVelocity: { value: 0, velocity: 0 },
+    press: { value: 0, velocity: 0 },
+    scaleX: { value: 1, velocity: 0 },
+    scaleY: { value: 1, velocity: 0 },
+    panel: { value: 0, velocity: 0 },
+    trackY: { value: 0, velocity: 0 },
+    trackX: { value: 1, velocity: 0 },
+    trackPress: { value: 1, velocity: 0 },
+    glow: { value: 0, velocity: 0 },
+    targetIndex: 0,
+    pressTarget: 0,
+    shapeTarget: 1,
+    releasePending: false,
+    returnAfterRelease: false,
+    dragging: false,
+    pointerId: null as number | null,
+    downX: 0,
+    downY: 0,
+    startX: 0,
+    startClientY: 0,
+    startY: 0,
+    startIndex: 0,
+    startPanel: 0,
+    maxMoved: 0,
+    originX: 0,
+    barWidth: 0,
+    barHeight: 72,
+    slotWidth: 0,
+    capsuleWidth: 0,
+    centers: [] as number[],
+    raf: 0,
+    lastTime: 0,
+  });
 
   function tabIndexFor(tab: "home" | "search" | "profile") {
     return tab === "home" ? 0 : tab === "search" ? 1 : 3;
   }
 
-  function getBtnCenterAndWidth(i: number): { center: number; width: number } | null {
+  function readNavMetrics() {
     const bar = navBarRef.current;
-    const btn = navBtnRefs.current[i];
-    if (!bar || !btn) return null;
+    const buttons = navBtnRefs.current;
+    if (!bar || buttons.some((button) => !button)) return null;
     const barRect = bar.getBoundingClientRect();
-    const btnRect = btn.getBoundingClientRect();
-    return {
-      center: btnRect.left + btnRect.width / 2 - barRect.left,
-      width: Math.max(btnRect.width * 0.94, (barRect.width / 4) * 0.92),
-    };
-  }
-
-  function setPhysicsTarget(index: number) {
-    const m = getBtnCenterAndWidth(index);
-    if (!m) return;
-    physicsRef.current.targetX = m.center;
-    physicsRef.current.targetWidth = m.width;
+    const centers = buttons.map((button) => {
+      const rect = button!.getBoundingClientRect();
+      return rect.left + rect.width / 2 - barRect.left;
+    });
+    const slotWidth = centers.length > 1
+      ? (centers[centers.length - 1] - centers[0]) / (centers.length - 1)
+      : (barRect.width - 8) / 4;
+    return { barWidth: barRect.width, barHeight: barRect.height, centers, slotWidth };
   }
 
   function applyPillStyle() {
     const p = physicsRef.current;
-    const barWidth = navBarRef.current?.getBoundingClientRect().width || 300;
-    const maxWindowWidth = (barWidth / 4) * 0.88;
-    const stretch = Math.min(1 + Math.abs(p.v) * 0.0022, 1.15);
-    const windowWidth = Math.min(p.width * stretch, maxWindowWidth);
-    const left = Math.max(0, p.x - windowWidth / 2);
-    const right = Math.max(0, barWidth - (p.x + windowWidth / 2));
+    if (!p.barWidth || p.centers.length !== 4 || !p.slotWidth) return;
+    const position = Math.max(0, Math.min(3, p.position.value));
+    const lowerIndex = Math.floor(position);
+    const upperIndex = Math.min(3, lowerIndex + 1);
+    const fraction = position - lowerIndex;
+    const center = p.centers[lowerIndex] +
+      (p.centers[upperIndex] - p.centers[lowerIndex]) * fraction;
+    const speed = p.positionVelocity.value / 10;
+    const pillScaleX = p.scaleX.value / (1 - Math.max(-0.2, Math.min(0.2, speed * 0.75)));
+    const pillScaleY = p.scaleY.value * (1 - Math.max(-0.2, Math.min(0.2, speed * 0.25)));
+    const pillWidth = p.capsuleWidth * pillScaleX;
+    const pillHeight = (p.barHeight - 10) * pillScaleY;
+    const left = center - pillWidth / 2;
+    const right = p.barWidth - (center + pillWidth / 2);
+    const top = (p.barHeight - pillHeight) / 2;
+    const panelOffset = jellyPanelOffset(p.panel.value, p.barWidth);
+
+    if (navBarRef.current) {
+      navBarRef.current.style.transform =
+        `translateX(calc(-50% + ${panelOffset}px)) translateY(${p.trackY.value}px) scaleX(${p.trackX.value}) scaleY(${p.trackPress.value})`;
+      navBarRef.current.style.transformOrigin = `${p.originX}px 50%`;
+    }
     if (pillRef.current) {
-      pillRef.current.style.width = `${p.width}px`;
-      pillRef.current.style.transform = `translateX(${p.x - p.width / 2}px) scaleX(${stretch})`;
+      pillRef.current.style.width = `${p.capsuleWidth}px`;
+      pillRef.current.style.transform =
+        `translateX(${center - p.capsuleWidth / 2}px) scale(${pillScaleX}, ${pillScaleY})`;
     }
     if (amberRowRef.current) {
-      amberRowRef.current.style.clipPath = `inset(0 ${right}px 0 ${left}px round 9999px)`;
+      amberRowRef.current.style.clipPath = `inset(${top}px ${right}px ${top}px ${left}px round 9999px)`;
+    }
+    if (pillGlowRef.current) {
+      const pillLeft = center - pillWidth / 2;
+      const glowX = p.originX - pillLeft;
+      const glowY = p.downY - top;
+      pillGlowRef.current.style.opacity = String(p.glow.value);
+      pillGlowRef.current.style.background =
+        `radial-gradient(circle 150px at ${glowX}px ${glowY}px, rgba(240,168,62,0.18), transparent 72%)`;
+    }
+    for (let index = 0; index < 4; index++) {
+      const coverage = Math.max(0, 1 - Math.abs(p.position.value - index));
+      const scale = 1 + 0.2 * p.press.value * coverage;
+      const transform = `scale(${scale})`;
+      if (navBtnRefs.current[index]) navBtnRefs.current[index]!.style.transform = transform;
+      if (navActiveItemRefs.current[index]) navActiveItemRefs.current[index]!.style.transform = transform;
     }
   }
 
   function stepPhysics(now: number) {
     const p = physicsRef.current;
-    const dt = p.lastTime ? Math.min((now - p.lastTime) / 1000, 0.032) : 0.016;
+    const dt = p.lastTime ? Math.min((now - p.lastTime) / 1000, 0.064) : 0.016;
     p.lastTime = now;
-    const stiffness = 340;
-    const damping = 34;
-    const ax = stiffness * (p.targetX - p.x) - damping * p.v;
-    p.v += ax * dt;
-    p.x += p.v * dt;
-    p.width += (p.targetWidth - p.width) * Math.min(dt * 14, 1);
+    advanceJellySpring(p.position, p.targetIndex, 1000, 1, dt);
+    advanceJellySpring(p.positionVelocity, p.dragging ? p.position.velocity / 3 : 0, 300, 0.5, dt);
+    if (!p.dragging) {
+      advanceJellySpring(p.panel, 0, 300, 1, dt);
+      advanceJellySpring(p.trackY, 0, 240 / 0.9, 18 / (2 * Math.sqrt(240 * 0.9)), dt);
+      advanceJellySpring(p.trackX, 1, 240 / 0.9, 18 / (2 * Math.sqrt(240 * 0.9)), dt);
+    }
+    if (p.releasePending && Math.abs(p.position.value - p.targetIndex) < 3 * 0.025) {
+      p.releasePending = false;
+      p.pressTarget = 0;
+      p.shapeTarget = 1;
+      if (p.returnAfterRelease) {
+        p.returnAfterRelease = false;
+        p.targetIndex = tabIndexFor(activeNavTab);
+      }
+    }
+    advanceJellySpring(p.press, p.pressTarget, 1000, 1, dt);
+    advanceJellySpring(p.scaleX, p.shapeTarget, 250, 0.6, dt);
+    advanceJellySpring(p.scaleY, p.shapeTarget, 250, 0.7, dt);
+    advanceJellySpring(
+      p.trackPress,
+      p.dragging ? 1.025 : 1,
+      240 / 0.9,
+      18 / (2 * Math.sqrt(240 * 0.9)),
+      dt,
+    );
+    advanceJellySpring(
+      p.glow,
+      p.dragging ? 1 : 0,
+      240 / 0.9,
+      18 / (2 * Math.sqrt(240 * 0.9)),
+      dt,
+    );
     applyPillStyle();
-    const settled = Math.abs(p.targetX - p.x) < 0.3 && Math.abs(p.v) < 2 && Math.abs(p.targetWidth - p.width) < 0.3;
-    if (!settled || draggingRef.current) {
+    const settled = (spring: JellySpringState, target: number) =>
+      Math.abs(spring.value - target) < 0.0001 && Math.abs(spring.velocity) < 0.0001;
+    const running = p.dragging || p.releasePending ||
+      !settled(p.position, p.targetIndex) ||
+      !settled(p.positionVelocity, 0) ||
+      !settled(p.press, p.pressTarget) ||
+      !settled(p.scaleX, 1) ||
+      !settled(p.scaleY, 1) ||
+      !settled(p.panel, 0) ||
+      !settled(p.trackY, 0) ||
+      !settled(p.trackX, 1) ||
+      !settled(p.trackPress, 1) ||
+      !settled(p.glow, 0);
+    if (running) {
       p.raf = requestAnimationFrame(stepPhysics);
     } else {
       p.raf = 0;
@@ -598,19 +745,44 @@ export default function Dashboard() {
     }
   }
 
-  useEffect(() => {
-    const m = getBtnCenterAndWidth(tabIndexFor(activeNavTab));
-    if (m) {
-      if (physicsRef.current.x === 0 && physicsRef.current.v === 0) {
-        physicsRef.current.x = m.center;
-        physicsRef.current.width = m.width;
-      }
-      setPhysicsTarget(tabIndexFor(activeNavTab));
-      kickPhysics();
+  function readAndApplyNavMetrics() {
+    const metrics = readNavMetrics();
+    if (!metrics) return;
+    const p = physicsRef.current;
+    p.barWidth = metrics.barWidth;
+    p.barHeight = metrics.barHeight;
+    p.centers = metrics.centers;
+    p.slotWidth = metrics.slotWidth;
+    p.capsuleWidth = metrics.slotWidth;
+    if (!p.dragging) {
+      p.targetIndex = tabIndexFor(activeNavTab);
+      p.originX = p.barWidth / 2;
     }
-    const t = setTimeout(() => { setPhysicsTarget(tabIndexFor(activeNavTab)); kickPhysics(); }, 400);
-    return () => clearTimeout(t);
+    applyPillStyle();
+    kickPhysics();
+  }
+
+  useEffect(() => {
+    readAndApplyNavMetrics();
+    const retry = window.setTimeout(readAndApplyNavMetrics, 400);
+    const bar = navBarRef.current;
+    const observer = typeof ResizeObserver !== "undefined" && bar
+      ? new ResizeObserver(readAndApplyNavMetrics)
+      : null;
+    observer?.observe(bar!);
+    window.addEventListener("resize", readAndApplyNavMetrics);
+    return () => {
+      window.clearTimeout(retry);
+      observer?.disconnect();
+      window.removeEventListener("resize", readAndApplyNavMetrics);
+    };
   }, [activeNavTab, showNavLabels]);
+
+  useEffect(() => () => {
+    if (physicsRef.current.raf) cancelAnimationFrame(physicsRef.current.raf);
+    if (profileLongPressTimerRef.current) clearTimeout(profileLongPressTimerRef.current);
+    if (suppressNavClickTimerRef.current) clearTimeout(suppressNavClickTimerRef.current);
+  }, []);
 
   function nearestIndex(clientX: number) {
     let bestIdx = 0;
@@ -625,58 +797,161 @@ export default function Dashboard() {
     return bestIdx;
   }
 
-  function handleNavTouchStart(e: React.TouchEvent<HTMLDivElement>) {
-    const clientX = e.touches[0].clientX;
-    dragStartXRef.current = clientX;
-    dragMovedRef.current = false;
-    const idx = nearestIndex(clientX);
-    const m = getBtnCenterAndWidth(idx);
-    if (m) {
-      physicsRef.current.targetWidth = m.width * 1.15;
-      kickPhysics();
+  function clearProfileLongPress() {
+    if (profileLongPressTimerRef.current) {
+      clearTimeout(profileLongPressTimerRef.current);
+      profileLongPressTimerRef.current = null;
     }
   }
 
-  function handleNavTouchMove(e: React.TouchEvent<HTMLDivElement>) {
-    if (dragStartXRef.current === null) return;
-    const clientX = e.touches[0].clientX;
-    const dx = Math.abs(clientX - dragStartXRef.current);
-    if (dx > 10) {
-      dragMovedRef.current = true;
-      draggingRef.current = true;
-      const idx = nearestIndex(clientX);
-      setDragTabIndex(idx);
-      const bar = navBarRef.current?.getBoundingClientRect();
-      if (bar) {
-        const localX = Math.max(10, Math.min(clientX - bar.left, bar.width - 10));
-        physicsRef.current.targetX = localX;
-        const m = getBtnCenterAndWidth(idx);
-        if (m) physicsRef.current.targetWidth = m.width * 1.15;
-        kickPhysics();
-      }
+  function armNavClickSuppression() {
+    suppressNavClickRef.current = true;
+    if (suppressNavClickTimerRef.current) clearTimeout(suppressNavClickTimerRef.current);
+    suppressNavClickTimerRef.current = setTimeout(() => {
+      suppressNavClickRef.current = false;
+      profileLongPressFiredRef.current = false;
+      suppressNavClickTimerRef.current = null;
+    }, 300);
+  }
+
+  function handleNavClickCapture(e: React.MouseEvent<HTMLDivElement>) {
+    if (!suppressNavClickRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    suppressNavClickRef.current = false;
+    profileLongPressFiredRef.current = false;
+    if (suppressNavClickTimerRef.current) {
+      clearTimeout(suppressNavClickTimerRef.current);
+      suppressNavClickTimerRef.current = null;
     }
   }
 
-  function handleNavTouchEnd() {
-    const idx = dragTabIndex;
-    if (dragMovedRef.current && idx !== null) {
-      if (idx === 0) {
-        handleHomeClick();
-      } else if (idx === 1) {
-        setActiveNavTab("search");
-        setSearchBarOpen(true);
-      } else if (idx === 3) {
-        setActiveNavTab("profile");
-        openSettings();
-      } else {
-        setPhysicsTarget(tabIndexFor(activeNavTab));
-        kickPhysics();
+  function activateNavIndex(index: number) {
+    if (index === 0) {
+      handleHomeClick();
+    } else if (index === 1) {
+      setShowSettings(false);
+      setActiveNavTab("search");
+      setSearchBarOpen(true);
+    } else if (index === 2) {
+      if (!uploading) {
+        setShowSettings(false);
+        uploadInputRef.current?.click();
       }
+    } else {
+      setActiveNavTab("profile");
+      openSettings();
     }
-    draggingRef.current = false;
-    dragStartXRef.current = null;
-    dragMovedRef.current = false;
-    setDragTabIndex(null);
+  }
+
+  function handleNavPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!e.isPrimary || e.button !== 0) return;
+    const metrics = readNavMetrics();
+    if (!metrics) return;
+    const p = physicsRef.current;
+    if (p.dragging) return;
+
+    clearProfileLongPress();
+    profileLongPressFiredRef.current = false;
+    suppressNavClickRef.current = false;
+    if (suppressNavClickTimerRef.current) {
+      clearTimeout(suppressNavClickTimerRef.current);
+      suppressNavClickTimerRef.current = null;
+    }
+
+    p.barWidth = metrics.barWidth;
+    p.barHeight = metrics.barHeight;
+    p.centers = metrics.centers;
+    p.slotWidth = metrics.slotWidth;
+    p.capsuleWidth = metrics.slotWidth;
+    p.startIndex = nearestIndex(e.clientX);
+    p.pointerId = e.pointerId;
+    p.startX = e.clientX;
+    p.startClientY = e.clientY;
+    p.downX = e.clientX - (navBarRef.current?.getBoundingClientRect().left ?? 0);
+    p.downY = e.clientY - (navBarRef.current?.getBoundingClientRect().top ?? 0);
+    p.startY = p.trackY.value;
+    p.startPanel = p.panel.value;
+    p.originX = Math.max(0, Math.min(p.barWidth, p.downX));
+    p.maxMoved = 0;
+    p.dragging = true;
+    p.targetIndex = p.startIndex;
+    p.pressTarget = 1;
+    p.shapeTarget = 1.3;
+    p.releasePending = false;
+    p.returnAfterRelease = false;
+    kickPhysics();
+
+    if (p.startIndex === 3) {
+      const pointerId = e.pointerId;
+      profileLongPressTimerRef.current = setTimeout(() => {
+        if (physicsRef.current.pointerId === pointerId && physicsRef.current.maxMoved <= 8) {
+          profileLongPressFiredRef.current = true;
+          setShowProfileSwitcher(true);
+        }
+      }, 500);
+    }
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Some browsers release the pointer before capture can be requested.
+    }
+  }
+
+  function handleNavPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const p = physicsRef.current;
+    if (!p.dragging || p.pointerId !== e.pointerId || !p.slotWidth) return;
+    const dx = e.clientX - p.startX;
+    const dy = e.clientY - p.startClientY;
+    p.maxMoved = Math.max(p.maxMoved, Math.abs(dx), Math.abs(dy));
+    if (p.maxMoved > 8) clearProfileLongPress();
+
+    p.targetIndex = Math.max(0, Math.min(3, p.startIndex + dx / p.slotWidth));
+    p.panel.value = p.startPanel + dx;
+    p.panel.velocity = 0;
+    p.trackY.value = p.startY + jellyRubberBand(dy, p.barHeight) * 0.25;
+    p.trackY.velocity = 0;
+    p.trackX.value = 1 - Math.min(Math.abs(dy) / 700, 1) * 0.08;
+    p.trackX.velocity = 0;
+    p.originX = Math.max(0, Math.min(p.barWidth, p.downX + dx));
+    kickPhysics();
+  }
+
+  function handleNavPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const p = physicsRef.current;
+    if (!p.dragging || p.pointerId !== e.pointerId) return;
+    clearProfileLongPress();
+    const longPress = profileLongPressFiredRef.current && p.startIndex === 3;
+    const index = p.maxMoved < 4
+      ? p.startIndex
+      : Math.max(0, Math.min(3, Math.floor(p.targetIndex + 0.5)));
+
+    p.dragging = false;
+    p.pointerId = null;
+    p.targetIndex = longPress ? tabIndexFor(activeNavTab) : index;
+    p.releasePending = true;
+    p.returnAfterRelease = !longPress && index === 2;
+    p.pressTarget = 1;
+    p.shapeTarget = 1.3;
+    armNavClickSuppression();
+    kickPhysics();
+    if (!longPress) activateNavIndex(index);
+  }
+
+  function handleNavPointerCancel(e: React.PointerEvent<HTMLDivElement>) {
+    const p = physicsRef.current;
+    if (!p.dragging || p.pointerId !== e.pointerId) return;
+    clearProfileLongPress();
+    p.dragging = false;
+    p.pointerId = null;
+    p.targetIndex = tabIndexFor(activeNavTab);
+    p.releasePending = true;
+    p.returnAfterRelease = false;
+    p.pressTarget = 1;
+    p.shapeTarget = 1.3;
+    profileLongPressFiredRef.current = false;
+    kickPhysics();
   }
 
   useEffect(() => {
@@ -728,29 +1003,28 @@ export default function Dashboard() {
     }
   }
 
+  function handleSearchClick() {
+    setShowSettings(false);
+    setActiveNavTab("search");
+    setSearchBarOpen(true);
+  }
+
+  function handleUploadClick() {
+    if (uploading) return;
+    setShowSettings(false);
+    uploadInputRef.current?.click();
+  }
+
+  function handleProfileClick() {
+    if (profileLongPressFiredRef.current) return;
+    setActiveNavTab("profile");
+    openSettings();
+  }
+
   function closeSearchBar() {
     setSearchBarOpen(false);
     setSearchQuery("");
     setActiveNavTab("home");
-  }
-
-  function handleProfileTouchStart() {
-    profileLongPressFiredRef.current = false;
-    profileLongPressTimerRef.current = setTimeout(() => {
-      profileLongPressFiredRef.current = true;
-      setShowProfileSwitcher(true);
-    }, 500);
-  }
-
-  function handleProfileTouchEnd() {
-    if (profileLongPressTimerRef.current) {
-      clearTimeout(profileLongPressTimerRef.current);
-      profileLongPressTimerRef.current = null;
-    }
-    if (!profileLongPressFiredRef.current) {
-      setActiveNavTab("profile");
-      openSettings();
-    }
   }
 
   const regularFiles = files.filter((f) => !isSecretFile(f.key));
@@ -4061,10 +4335,14 @@ export default function Dashboard() {
       {/* Bottom navigation bar -- floating pill, Nuvio-style jelly physics + masked color reveal */}
       <div
         ref={navBarRef}
-        onTouchStart={handleNavTouchStart}
-        onTouchMove={handleNavTouchMove}
-        onTouchEnd={handleNavTouchEnd}
-        onTouchCancel={handleNavTouchEnd}
+        role="navigation"
+        aria-label="Primary navigation"
+        onClickCapture={handleNavClickCapture}
+        onPointerDown={handleNavPointerDown}
+        onPointerMove={handleNavPointerMove}
+        onPointerUp={handleNavPointerUp}
+        onPointerCancel={handleNavPointerCancel}
+        onContextMenu={(event) => event.preventDefault()}
         style={{
           position: "fixed",
           left: "50%",
@@ -4084,8 +4362,11 @@ export default function Dashboard() {
           border: "1px solid rgba(255,255,255,0.24)",
           boxShadow: "0 8px 28px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.18)",
           transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), height 0.35s cubic-bezier(0.4,0,0.2,1)",
-          overflow: "visible",
+          overflow: "hidden",
           boxSizing: "border-box",
+          touchAction: "none",
+          userSelect: "none",
+          WebkitUserSelect: "none",
         }}
       >
         {/* jelly pill track -- physics-driven, sits behind both label layers */}
@@ -4096,28 +4377,44 @@ export default function Dashboard() {
             top: "5px",
             bottom: "5px",
             left: 0,
-            width: "60px",
+            width: "80px",
             borderRadius: "9999px",
-            background: "rgba(255,255,255,0.15)",
+            background: "rgba(255,255,255,0.17)",
             border: "1px solid rgba(255,255,255,0.10)",
             boxShadow: "inset 0 1px 0 rgba(255,255,255,0.16)",
+            overflow: "hidden",
+            boxSizing: "border-box",
             pointerEvents: "none",
             zIndex: 1,
             willChange: "transform, width",
+            transformOrigin: "center center",
           }}
-        />
+        >
+          <div
+            ref={pillGlowRef}
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              opacity: 0,
+              pointerEvents: "none",
+              willChange: "opacity, background",
+            }}
+          />
+        </div>
 
         {/* layer 1: muted row -- always visible, real interactive buttons */}
         <div style={{ position: "relative", zIndex: 2, display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "space-around" }}>
           <button
             onClick={handleHomeClick}
             ref={(el) => { navBtnRefs.current[0] = el; }}
+            type="button"
             aria-label="Home"
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
               borderRadius: "9999px", border: "none", background: "none", cursor: "pointer",
-              WebkitTapHighlightColor: "transparent",
+              WebkitTapHighlightColor: "transparent", transformOrigin: "center center", willChange: "transform",
             }}
           >
             <HomeIcon color={COLORS.muted} size={32} filled={false} />
@@ -4127,14 +4424,15 @@ export default function Dashboard() {
           </button>
 
           <button
-            onClick={() => { setShowSettings(false); setActiveNavTab("search"); setSearchBarOpen(true); }}
+            onClick={handleSearchClick}
             ref={(el) => { navBtnRefs.current[1] = el; }}
+            type="button"
             aria-label="Search"
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
               borderRadius: "9999px", border: "none", background: "none", cursor: "pointer",
-              WebkitTapHighlightColor: "transparent",
+              WebkitTapHighlightColor: "transparent", transformOrigin: "center center", willChange: "transform",
             }}
           >
             <SearchIcon color={COLORS.muted} size={32} strokeWidth={2.1} />
@@ -4144,16 +4442,17 @@ export default function Dashboard() {
           </button>
 
           <button
-            onClick={() => { setShowSettings(false); uploadInputRef.current?.click(); }}
+            onClick={handleUploadClick}
             disabled={uploading}
             ref={(el) => { navBtnRefs.current[2] = el; }}
+            type="button"
             aria-label="Upload"
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
               borderRadius: "9999px", border: "none", background: "none",
               cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.5 : 1,
-              WebkitTapHighlightColor: "transparent",
+              WebkitTapHighlightColor: "transparent", transformOrigin: "center center", willChange: "transform",
             }}
           >
             <UploadIcon color={COLORS.muted} size={32} />
@@ -4163,16 +4462,15 @@ export default function Dashboard() {
           </button>
 
           <button
-            onTouchStart={handleProfileTouchStart}
-            onTouchEnd={handleProfileTouchEnd}
-            onTouchCancel={handleProfileTouchEnd}
+            onClick={handleProfileClick}
             ref={(el) => { navBtnRefs.current[3] = el; }}
+            type="button"
             aria-label="Profile"
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
               borderRadius: "9999px", border: "none", background: "none", cursor: "pointer",
-              WebkitTapHighlightColor: "transparent",
+              WebkitTapHighlightColor: "transparent", transformOrigin: "center center", willChange: "transform",
             }}
           >
             <PersonIcon color={COLORS.muted} size={32} strokeWidth={2.1} />
@@ -4193,19 +4491,19 @@ export default function Dashboard() {
             clipPath: "inset(0 100% 0 0 round 9999px)",
           }}
         >
-          <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
+          <div ref={(el) => { navActiveItemRefs.current[0] = el; }} aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%", transformOrigin: "center center", willChange: "transform" }}>
             <HomeIcon color="#fff" size={32} filled={true} />
             <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Home</span>
           </div>
-          <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
+          <div ref={(el) => { navActiveItemRefs.current[1] = el; }} aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%", transformOrigin: "center center", willChange: "transform" }}>
             <SearchIcon color="#fff" size={32} strokeWidth={2.6} />
             <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Search</span>
           </div>
-          <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
+          <div ref={(el) => { navActiveItemRefs.current[2] = el; }} aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%", transformOrigin: "center center", willChange: "transform" }}>
             <UploadIcon color="#fff" size={32} />
             <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>{uploading ? "Uploading" : "Upload"}</span>
           </div>
-          <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
+          <div ref={(el) => { navActiveItemRefs.current[3] = el; }} aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%", transformOrigin: "center center", willChange: "transform" }}>
             <PersonIcon color="#fff" size={32} strokeWidth={2.6} />
             <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Profile</span>
           </div>
