@@ -542,7 +542,10 @@ export default function Dashboard() {
     if (!bar || !btn) return null;
     const barRect = bar.getBoundingClientRect();
     const btnRect = btn.getBoundingClientRect();
-    return { center: btnRect.left + btnRect.width / 2 - barRect.left, width: btnRect.width * 0.82 };
+    return {
+      center: btnRect.left + btnRect.width / 2 - barRect.left,
+      width: Math.max(btnRect.width * 0.94, (barRect.width / 4) * 0.92),
+    };
   }
 
   function setPhysicsTarget(index: number) {
@@ -4071,15 +4074,15 @@ export default function Dashboard() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-around",
-          width: showNavLabels ? "min(92vw, 420px)" : "204px",
-          height: showNavLabels ? "68px" : "52px",
+          width: showNavLabels ? "min(calc(100vw - 56px), 400px)" : "204px",
+          height: showNavLabels ? "72px" : "52px",
           padding: "0 0.4rem",
           borderRadius: "9999px",
-          background: "rgba(22,22,24,0.92)",
-          backdropFilter: "blur(14px)",
-          WebkitBackdropFilter: "blur(14px)",
-          border: `1px solid ${COLORS.border}`,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          background: "rgba(28,28,30,0.68)",
+          backdropFilter: "blur(24px) saturate(145%)",
+          WebkitBackdropFilter: "blur(24px) saturate(145%)",
+          border: "1px solid rgba(255,255,255,0.24)",
+          boxShadow: "0 8px 28px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.18)",
           transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), height 0.35s cubic-bezier(0.4,0,0.2,1)",
           overflow: "visible",
           boxSizing: "border-box",
@@ -4090,14 +4093,14 @@ export default function Dashboard() {
           ref={pillRef}
           style={{
             position: "absolute",
-            top: "9px",
-            bottom: "9px",
+            top: "5px",
+            bottom: "5px",
             left: 0,
             width: "60px",
             borderRadius: "9999px",
-            background: "rgba(255,255,255,0.30)",
-            border: "1px solid rgba(255,255,255,0.18)",
-            boxShadow: "0 0 18px rgba(240,168,62,0.35), inset 0 1px 0 rgba(255,255,255,0.15)",
+            background: "rgba(255,255,255,0.15)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.16)",
             pointerEvents: "none",
             zIndex: 1,
             willChange: "transform, width",
@@ -4117,8 +4120,8 @@ export default function Dashboard() {
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            <HomeIcon color={COLORS.muted} size={26} filled={false} />
-            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.muted, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+            <HomeIcon color={COLORS.muted} size={32} filled={false} />
+            <span style={{ fontSize: "1rem", fontWeight: 500, color: COLORS.muted, maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
               Home
             </span>
           </button>
@@ -4134,8 +4137,8 @@ export default function Dashboard() {
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            <SearchIcon color={COLORS.muted} size={26} strokeWidth={2.1} />
-            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.muted, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+            <SearchIcon color={COLORS.muted} size={32} strokeWidth={2.1} />
+            <span style={{ fontSize: "1rem", fontWeight: 500, color: COLORS.muted, maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
               Search
             </span>
           </button>
@@ -4153,8 +4156,8 @@ export default function Dashboard() {
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            <UploadIcon color={COLORS.muted} size={26} />
-            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.muted, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+            <UploadIcon color={COLORS.muted} size={32} />
+            <span style={{ fontSize: "1rem", fontWeight: 500, color: COLORS.muted, maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
               {uploading ? "Uploading" : "Upload"}
             </span>
           </button>
@@ -4172,8 +4175,8 @@ export default function Dashboard() {
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            <PersonIcon color={COLORS.muted} size={26} strokeWidth={2.1} />
-            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.muted, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+            <PersonIcon color={COLORS.muted} size={32} strokeWidth={2.1} />
+            <span style={{ fontSize: "1rem", fontWeight: 500, color: COLORS.muted, maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
               Profile
             </span>
           </button>
@@ -4191,20 +4194,20 @@ export default function Dashboard() {
           }}
         >
           <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
-            <HomeIcon color={COLORS.brass} size={26} filled={true} />
-            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.brass, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Home</span>
+            <HomeIcon color="#fff" size={32} filled={true} />
+            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Home</span>
           </div>
           <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
-            <SearchIcon color={COLORS.brass} size={26} strokeWidth={2.6} />
-            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.brass, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Search</span>
+            <SearchIcon color="#fff" size={32} strokeWidth={2.6} />
+            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Search</span>
           </div>
           <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
-            <UploadIcon color={COLORS.brass} size={26} />
-            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.brass, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>{uploading ? "Uploading" : "Upload"}</span>
+            <UploadIcon color="#fff" size={32} />
+            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>{uploading ? "Uploading" : "Upload"}</span>
           </div>
           <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
-            <PersonIcon color={COLORS.brass} size={26} strokeWidth={2.6} />
-            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.brass, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Profile</span>
+            <PersonIcon color="#fff" size={32} strokeWidth={2.6} />
+            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Profile</span>
           </div>
         </div>
       </div>
