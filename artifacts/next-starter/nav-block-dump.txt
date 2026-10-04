@@ -1,0 +1,211 @@
+      {/* Bottom navigation bar -- floating pill that resizes (width + height) on scroll, Nuvio-style */}
+      <div
+        ref={navBarRef}
+        onTouchStart={handleNavTouchStart}
+        onTouchMove={handleNavTouchMove}
+        onTouchEnd={handleNavTouchEnd}
+        onTouchCancel={handleNavTouchEnd}
+        style={{
+          position: "fixed",
+          left: "50%",
+          transform: "translateX(-50%)",
+          bottom: "calc(14px + env(safe-area-inset-bottom, 0px))",
+          zIndex: 55,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-around",
+          width: showNavLabels ? "min(92vw, 420px)" : "204px",
+          height: showNavLabels ? "68px" : "52px",
+          padding: "0 0.4rem",
+          borderRadius: "9999px",
+          background: "rgba(22,22,24,0.92)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+          border: `1px solid ${COLORS.border}`,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), height 0.35s cubic-bezier(0.4,0,0.2,1)",
+          overflow: "visible",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: "9px",
+            bottom: "9px",
+            left: dragXPercent !== null
+              ? `${dragXPercent}%`
+              : `${slotCenters[activeNavTab === "home" ? 0 : activeNavTab === "search" ? 1 : activeNavTab === "profile" ? 3 : 0]}%`,
+            width: "23%",
+            transform: `translateX(-50%) scaleX(${dragXPercent !== null ? Math.min(1.34 * blobStretch, 1.9) : 1})`,
+            borderRadius: "9999px",
+            background: "rgba(255,255,255,0.16)",
+            border: "none",
+            boxShadow: "none",
+            transition: dragXPercent !== null
+              ? "transform 0.08s ease-out"
+              : "left 0.3s cubic-bezier(0.34,1.56,0.64,1), transform 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+            pointerEvents: "none",
+            zIndex: 1,
+          }}
+        />
+        <button
+          onClick={handleHomeClick}
+          ref={(el) => { navBtnRefs.current[0] = el; }}
+          aria-label="Home"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.05rem",
+            flex: 1,
+            height: "calc(100% - 10px)",
+            padding: 0,
+            borderRadius: "9999px",
+            border: "none",
+            background: "none",
+            cursor: "pointer",
+            transform: dragTabIndex === 0 ? "scale(1.18)" : "scale(1)",
+            transition: "background 0.2s ease, transform 0.15s ease",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <HomeIcon color={activeNavTab === "home" || dragTabIndex === 0 ? COLORS.brass : COLORS.muted} size={26} filled={activeNavTab === "home"} />
+          <span
+            style={{
+              fontSize: "0.66rem",
+              fontWeight: 700,
+              color: activeNavTab === "home" || dragTabIndex === 0 ? COLORS.brass : COLORS.muted,
+              maxHeight: showNavLabels ? "14px" : "0px",
+              opacity: showNavLabels ? 1 : 0,
+              overflow: "hidden",
+              transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease",
+            }}
+          >
+            Home
+          </span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveNavTab("search");
+            setSearchBarOpen(true);
+          }}
+          ref={(el) => { navBtnRefs.current[1] = el; }}
+          aria-label="Search"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.05rem",
+            flex: 1,
+            height: "calc(100% - 10px)",
+            padding: 0,
+            borderRadius: "9999px",
+            border: "none",
+            background: "none",
+            cursor: "pointer",
+            transform: dragTabIndex === 1 ? "scale(1.18)" : "scale(1)",
+            transition: "background 0.2s ease, transform 0.15s ease",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <SearchIcon color={activeNavTab === "search" || dragTabIndex === 1 ? COLORS.brass : COLORS.muted} size={26} strokeWidth={activeNavTab === "search" || dragTabIndex === 1 ? 2.6 : 2.1} />
+          <span
+            style={{
+              fontSize: "0.66rem",
+              fontWeight: 700,
+              color: activeNavTab === "search" || dragTabIndex === 1 ? COLORS.brass : COLORS.muted,
+              maxHeight: showNavLabels ? "14px" : "0px",
+              opacity: showNavLabels ? 1 : 0,
+              overflow: "hidden",
+              transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease",
+            }}
+          >
+            Search
+          </span>
+        </button>
+
+        <button
+          onClick={() => uploadInputRef.current?.click()}
+          disabled={uploading}
+          ref={(el) => { navBtnRefs.current[2] = el; }}
+          aria-label="Upload"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.05rem",
+            flex: 1,
+            height: "calc(100% - 10px)",
+            padding: 0,
+            borderRadius: "9999px",
+            border: "none",
+            background: "none",
+            cursor: uploading ? "not-allowed" : "pointer",
+            opacity: uploading ? 0.5 : 1,
+            transform: dragTabIndex === 2 ? "scale(1.18)" : "scale(1)",
+            transition: "background 0.2s ease, transform 0.15s ease",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <UploadIcon color={dragTabIndex === 2 ? COLORS.brass : COLORS.muted} size={26} />
+          <span
+            style={{
+              fontSize: "0.66rem",
+              fontWeight: 700,
+              color: COLORS.muted,
+              maxHeight: showNavLabels ? "14px" : "0px",
+              opacity: showNavLabels ? 1 : 0,
+              overflow: "hidden",
+              transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease",
+            }}
+          >
+            {uploading ? "Uploading" : "Upload"}
+          </span>
+        </button>
+
+        <button
+          onTouchStart={handleProfileTouchStart}
+          onTouchEnd={handleProfileTouchEnd}
+          onTouchCancel={handleProfileTouchEnd}
+          ref={(el) => { navBtnRefs.current[3] = el; }}
+          aria-label="Profile"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.05rem",
+            flex: 1,
+            height: "calc(100% - 10px)",
+            padding: 0,
+            borderRadius: "9999px",
+            border: "none",
+            background: "none",
+            cursor: "pointer",
+            transform: dragTabIndex === 3 ? "scale(1.18)" : "scale(1)",
+            transition: "background 0.2s ease, transform 0.15s ease",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <PersonIcon color={activeNavTab === "profile" || dragTabIndex === 3 ? COLORS.brass : COLORS.muted} size={26} strokeWidth={activeNavTab === "profile" || dragTabIndex === 3 ? 2.6 : 2.1} />
+          <span
+            style={{
+              fontSize: "0.66rem",
+              fontWeight: 700,
+              color: activeNavTab === "profile" || dragTabIndex === 3 ? COLORS.brass : COLORS.muted,
+              maxHeight: showNavLabels ? "14px" : "0px",
+              opacity: showNavLabels ? 1 : 0,
+              overflow: "hidden",
+              transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease",
+            }}
+          >
+            Profile
+          </span>
+        </button>
+      </div>
+
+      {/* Profile switcher overlay -- placeholder, replaced by the full avatar grid next */}

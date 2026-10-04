@@ -253,11 +253,11 @@ function DownloadIcon({ color }: { color: string }) {
   );
 }
 
-function SearchIcon({ color }: { color: string }) {
+function SearchIcon({ color, size = 16, strokeWidth = 1.8 }: { color: string; size?: number; strokeWidth?: number }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-      <circle cx="11" cy="11" r="7" stroke={color} strokeWidth="1.8" />
-      <path d="M20 20l-4-4" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="11" cy="11" r="7" stroke={color} strokeWidth={strokeWidth} />
+      <path d="M20 20l-4-4" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
     </svg>
   );
 }
@@ -327,6 +327,41 @@ function ShareIcon({ color }: { color: string }) {
       <circle cx="6" cy="12" r="2.6" stroke={color} strokeWidth="1.6" />
       <circle cx="18" cy="19" r="2.6" stroke={color} strokeWidth="1.6" />
       <path d="M8.3 10.7l7.4-4.4M8.3 13.3l7.4 4.4" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HomeIcon({ color, size = 22, strokeWidth = 1.8, filled = false }: { color: string; size?: number; strokeWidth?: number; filled?: boolean }) {
+  if (filled) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill={color} />
+      </svg>
+    );
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M4 11.5 12 4l8 7.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 10v9a1 1 0 0 0 1 1h3v-5.5h4V20h3a1 1 0 0 0 1-1v-9" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function UploadIcon({ color, size = 24, strokeWidth = 2.1 }: { color: string; size?: number; strokeWidth?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M12 16V4" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <path d="M7 8.5 12 4l5 4.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PersonIcon({ color, size = 22, strokeWidth = 1.8 }: { color: string; size?: number; strokeWidth?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="8" r="3.4" stroke={color} strokeWidth={strokeWidth} />
+      <path d="M5 20c0-3.6 3.1-6.5 7-6.5s7 2.9 7 6.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
     </svg>
   );
 }
@@ -476,6 +511,244 @@ export default function Dashboard() {
   const currentFolderProtected = inFolder && (view as FolderMeta).protected;
   const currentPassphrase = currentFolderId ? unlockedPassphrases[currentFolderId] : undefined;
   const canAddSecrets = Boolean(currentFolderProtected && currentPassphrase);
+
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [searchBarOpen, setSearchBarOpen] = useState(false);
+  const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
+  const profileLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const profileLongPressFiredRef = useRef(false);
+  const [showNavLabels, setShowNavLabels] = useState(true);
+  const [activeNavTab, setActiveNavTab] = useState<"home" | "search" | "profile">("home");
+  const lastScrollYRef = useRef(0);
+  const [dragTabIndex, setDragTabIndex] = useState<number | null>(null);
+  const navBarRef = useRef<HTMLDivElement>(null);
+  const navBtnRefs = useRef<(HTMLButtonElement | null)[]>([null, null, null, null]);
+  const pillRef = useRef<HTMLDivElement>(null);
+  const amberRowRef = useRef<HTMLDivElement>(null);
+  const dragStartXRef = useRef<number | null>(null);
+  const dragMovedRef = useRef(false);
+  const draggingRef = useRef(false);
+
+  const physicsRef = useRef({ x: 0, v: 0, targetX: 0, width: 60, targetWidth: 60, raf: 0, lastTime: 0 });
+
+  function tabIndexFor(tab: "home" | "search" | "profile") {
+    return tab === "home" ? 0 : tab === "search" ? 1 : 3;
+  }
+
+  function getBtnCenterAndWidth(i: number): { center: number; width: number } | null {
+    const bar = navBarRef.current;
+    const btn = navBtnRefs.current[i];
+    if (!bar || !btn) return null;
+    const barRect = bar.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    return { center: btnRect.left + btnRect.width / 2 - barRect.left, width: btnRect.width * 0.82 };
+  }
+
+  function setPhysicsTarget(index: number) {
+    const m = getBtnCenterAndWidth(index);
+    if (!m) return;
+    physicsRef.current.targetX = m.center;
+    physicsRef.current.targetWidth = m.width;
+  }
+
+  function applyPillStyle() {
+    const p = physicsRef.current;
+    const barWidth = navBarRef.current?.getBoundingClientRect().width || 300;
+    const maxWindowWidth = (barWidth / 4) * 0.88;
+    const stretch = Math.min(1 + Math.abs(p.v) * 0.0022, 1.15);
+    const windowWidth = Math.min(p.width * stretch, maxWindowWidth);
+    const left = Math.max(0, p.x - windowWidth / 2);
+    const right = Math.max(0, barWidth - (p.x + windowWidth / 2));
+    if (pillRef.current) {
+      pillRef.current.style.width = `${p.width}px`;
+      pillRef.current.style.transform = `translateX(${p.x - p.width / 2}px) scaleX(${stretch})`;
+    }
+    if (amberRowRef.current) {
+      amberRowRef.current.style.clipPath = `inset(0 ${right}px 0 ${left}px round 9999px)`;
+    }
+  }
+
+  function stepPhysics(now: number) {
+    const p = physicsRef.current;
+    const dt = p.lastTime ? Math.min((now - p.lastTime) / 1000, 0.032) : 0.016;
+    p.lastTime = now;
+    const stiffness = 340;
+    const damping = 34;
+    const ax = stiffness * (p.targetX - p.x) - damping * p.v;
+    p.v += ax * dt;
+    p.x += p.v * dt;
+    p.width += (p.targetWidth - p.width) * Math.min(dt * 14, 1);
+    applyPillStyle();
+    const settled = Math.abs(p.targetX - p.x) < 0.3 && Math.abs(p.v) < 2 && Math.abs(p.targetWidth - p.width) < 0.3;
+    if (!settled || draggingRef.current) {
+      p.raf = requestAnimationFrame(stepPhysics);
+    } else {
+      p.raf = 0;
+    }
+  }
+
+  function kickPhysics() {
+    if (!physicsRef.current.raf) {
+      physicsRef.current.lastTime = 0;
+      physicsRef.current.raf = requestAnimationFrame(stepPhysics);
+    }
+  }
+
+  useEffect(() => {
+    const m = getBtnCenterAndWidth(tabIndexFor(activeNavTab));
+    if (m) {
+      if (physicsRef.current.x === 0 && physicsRef.current.v === 0) {
+        physicsRef.current.x = m.center;
+        physicsRef.current.width = m.width;
+      }
+      setPhysicsTarget(tabIndexFor(activeNavTab));
+      kickPhysics();
+    }
+    const t = setTimeout(() => { setPhysicsTarget(tabIndexFor(activeNavTab)); kickPhysics(); }, 400);
+    return () => clearTimeout(t);
+  }, [activeNavTab, showNavLabels]);
+
+  function nearestIndex(clientX: number) {
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < 4; i++) {
+      const btn = navBtnRefs.current[i];
+      if (!btn) continue;
+      const r = btn.getBoundingClientRect();
+      const d = Math.abs(clientX - (r.left + r.width / 2));
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    return bestIdx;
+  }
+
+  function handleNavTouchStart(e: React.TouchEvent<HTMLDivElement>) {
+    const clientX = e.touches[0].clientX;
+    dragStartXRef.current = clientX;
+    dragMovedRef.current = false;
+    const idx = nearestIndex(clientX);
+    const m = getBtnCenterAndWidth(idx);
+    if (m) {
+      physicsRef.current.targetWidth = m.width * 1.15;
+      kickPhysics();
+    }
+  }
+
+  function handleNavTouchMove(e: React.TouchEvent<HTMLDivElement>) {
+    if (dragStartXRef.current === null) return;
+    const clientX = e.touches[0].clientX;
+    const dx = Math.abs(clientX - dragStartXRef.current);
+    if (dx > 10) {
+      dragMovedRef.current = true;
+      draggingRef.current = true;
+      const idx = nearestIndex(clientX);
+      setDragTabIndex(idx);
+      const bar = navBarRef.current?.getBoundingClientRect();
+      if (bar) {
+        const localX = Math.max(10, Math.min(clientX - bar.left, bar.width - 10));
+        physicsRef.current.targetX = localX;
+        const m = getBtnCenterAndWidth(idx);
+        if (m) physicsRef.current.targetWidth = m.width * 1.15;
+        kickPhysics();
+      }
+    }
+  }
+
+  function handleNavTouchEnd() {
+    const idx = dragTabIndex;
+    if (dragMovedRef.current && idx !== null) {
+      if (idx === 0) {
+        handleHomeClick();
+      } else if (idx === 1) {
+        setActiveNavTab("search");
+        setSearchBarOpen(true);
+      } else if (idx === 3) {
+        setActiveNavTab("profile");
+        openSettings();
+      } else {
+        setPhysicsTarget(tabIndexFor(activeNavTab));
+        kickPhysics();
+      }
+    }
+    draggingRef.current = false;
+    dragStartXRef.current = null;
+    dragMovedRef.current = false;
+    setDragTabIndex(null);
+  }
+
+  useEffect(() => {
+    if (searchBarOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [searchBarOpen]);
+
+  useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+    const lastTargetRef = { current: null as EventTarget | null };
+    const lastProcessedRef = { current: 0 };
+    function getScrollTop(target: EventTarget | null) {
+      if (!target) return 0;
+      if (target === document || target === window) return window.scrollY;
+      return (target as HTMLElement).scrollTop ?? 0;
+    }
+    function onScroll(e: Event) {
+      const now = performance.now();
+      if (now - lastProcessedRef.current < 80) return;
+      lastProcessedRef.current = now;
+      const target = e.target;
+      const y = getScrollTop(target);
+      if (lastTargetRef.current !== target) {
+        lastTargetRef.current = target;
+        lastScrollYRef.current = y;
+        return;
+      }
+      const delta = y - lastScrollYRef.current;
+      if (delta > 6 && y > 40) {
+        setShowNavLabels(false);
+      } else if (delta < -6 || y < 40) {
+        setShowNavLabels(true);
+      }
+      lastScrollYRef.current = y;
+    }
+    document.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    return () => document.removeEventListener("scroll", onScroll, { capture: true } as any);
+  }, []);
+
+  function handleHomeClick() {
+    setActiveNavTab("home");
+    setShowSettings(false);
+    setSearchBarOpen(false);
+    if (inFolder) {
+      setView("root");
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function closeSearchBar() {
+    setSearchBarOpen(false);
+    setSearchQuery("");
+    setActiveNavTab("home");
+  }
+
+  function handleProfileTouchStart() {
+    profileLongPressFiredRef.current = false;
+    profileLongPressTimerRef.current = setTimeout(() => {
+      profileLongPressFiredRef.current = true;
+      setShowProfileSwitcher(true);
+    }, 500);
+  }
+
+  function handleProfileTouchEnd() {
+    if (profileLongPressTimerRef.current) {
+      clearTimeout(profileLongPressTimerRef.current);
+      profileLongPressTimerRef.current = null;
+    }
+    if (!profileLongPressFiredRef.current) {
+      setActiveNavTab("profile");
+      openSettings();
+    }
+  }
 
   const regularFiles = files.filter((f) => !isSecretFile(f.key));
   const secretFiles = files.filter((f) => isSecretFile(f.key));
@@ -1781,6 +2054,7 @@ export default function Dashboard() {
         background: `radial-gradient(circle at 50% 0%, #1a1a20 0%, ${COLORS.bg} 60%)`,
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         padding: "1.5rem",
+        paddingBottom: "calc(1.5rem + 88px + env(safe-area-inset-bottom, 0px))",
         color: COLORS.text,
       }}
     >
@@ -1797,49 +2071,23 @@ export default function Dashboard() {
           <h1 style={{ fontSize: "1.7rem", fontWeight: 700, margin: 0, letterSpacing: "-0.02em", color: COLORS.text }}>
             Vault
           </h1>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-            <button
-              onClick={openSettings}
-              aria-label="Settings"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "36px",
-                height: "36px",
-                borderRadius: "10px",
-                border: `1px solid ${COLORS.border}`,
-                background: COLORS.surface,
-                cursor: "pointer",
-              }}
-            >
-              <GearIcon color={COLORS.muted} />
-            </button>
-            <label
-              style={{
-                padding: "0.65rem 1.2rem",
-                borderRadius: "999px",
-                background: uploading ? COLORS.elevated : COLORS.brass,
-                color: uploading ? COLORS.muted : "#1A1305",
-                fontWeight: 700,
-                fontSize: "0.875rem",
-                cursor: uploading ? "not-allowed" : "pointer",
-                border: "none",
-              }}
-            >
-              {uploading ? "Uploading..." : "+ Upload"}
-              <input type="file" onChange={handleUpload} disabled={uploading} style={{ display: "none" }} />
-            </label>
-          </div>
+          <input
+            type="file"
+            ref={uploadInputRef}
+            onChange={handleUpload}
+            disabled={uploading}
+            style={{ display: "none" }}
+          />
         </div>
 
-        {/* Search bar */}
+        {searchBarOpen && (
         <div style={{ position: "relative", marginBottom: "1.25rem" }}>
           <div style={{ position: "relative" }}>
             <span style={{ position: "absolute", left: "0.85rem", top: "50%", transform: "translateY(-50%)" }}>
               <SearchIcon color={COLORS.muted} />
             </span>
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Search files, notes, passwords..."
               value={searchQuery}
@@ -1847,7 +2095,7 @@ export default function Dashboard() {
               style={{
                 width: "100%",
                 boxSizing: "border-box",
-                padding: "0.7rem 0.9rem 0.7rem 2.4rem",
+                padding: "0.7rem 2.4rem 0.7rem 2.4rem",
                 borderRadius: "10px",
                 border: `1px solid ${COLORS.border}`,
                 background: COLORS.surface,
@@ -1855,6 +2103,27 @@ export default function Dashboard() {
                 fontSize: "0.85rem",
               }}
             />
+            <button
+              onClick={closeSearchBar}
+              aria-label="Close search"
+              style={{
+                position: "absolute",
+                right: "0.6rem",
+                top: "50%",
+                transform: "translateY(-50%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "24px",
+                height: "24px",
+                borderRadius: "50%",
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+              }}
+            >
+              <XIcon color={COLORS.muted} />
+            </button>
           </div>
           {searchQuery.trim() && (
             <div
@@ -1911,6 +2180,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+        )}
 
         {!inFolder && allTags.length > 0 && (
           <div style={{ marginBottom: "1.25rem" }}>
@@ -3508,6 +3778,34 @@ export default function Dashboard() {
               Settings
             </h2>
 
+            <button
+              onClick={() => {
+                setShowSettings(false);
+                setShowProfileSwitcher(true);
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                padding: "0.9rem 1rem",
+                borderRadius: "14px",
+                background: COLORS.surface,
+                border: "none",
+                color: COLORS.text,
+                fontSize: "0.9rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <PersonIcon color={COLORS.text} />
+                Switch Profile
+              </span>
+              <span style={{ color: COLORS.muted, fontSize: "1rem" }}>{"›"}</span>
+            </button>
+
             <p style={{ margin: "0 0 0.6rem", fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.06em", color: COLORS.muted, textTransform: "uppercase" }}>
               Storage
             </p>
@@ -3753,6 +4051,183 @@ export default function Dashboard() {
                 {biometricBusy ? "Confirming..." : "Confirm"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom navigation bar -- floating pill, Nuvio-style jelly physics + masked color reveal */}
+      <div
+        ref={navBarRef}
+        onTouchStart={handleNavTouchStart}
+        onTouchMove={handleNavTouchMove}
+        onTouchEnd={handleNavTouchEnd}
+        onTouchCancel={handleNavTouchEnd}
+        style={{
+          position: "fixed",
+          left: "50%",
+          transform: "translateX(-50%)",
+          bottom: "calc(14px + env(safe-area-inset-bottom, 0px))",
+          zIndex: 55,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-around",
+          width: showNavLabels ? "min(92vw, 420px)" : "204px",
+          height: showNavLabels ? "68px" : "52px",
+          padding: "0 0.4rem",
+          borderRadius: "9999px",
+          background: "rgba(22,22,24,0.92)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+          border: `1px solid ${COLORS.border}`,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), height 0.35s cubic-bezier(0.4,0,0.2,1)",
+          overflow: "visible",
+          boxSizing: "border-box",
+        }}
+      >
+        {/* jelly pill track -- physics-driven, sits behind both label layers */}
+        <div
+          ref={pillRef}
+          style={{
+            position: "absolute",
+            top: "9px",
+            bottom: "9px",
+            left: 0,
+            width: "60px",
+            borderRadius: "9999px",
+            background: "rgba(255,255,255,0.30)",
+            border: "1px solid rgba(255,255,255,0.18)",
+            boxShadow: "0 0 18px rgba(240,168,62,0.35), inset 0 1px 0 rgba(255,255,255,0.15)",
+            pointerEvents: "none",
+            zIndex: 1,
+            willChange: "transform, width",
+          }}
+        />
+
+        {/* layer 1: muted row -- always visible, real interactive buttons */}
+        <div style={{ position: "relative", zIndex: 2, display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "space-around" }}>
+          <button
+            onClick={handleHomeClick}
+            ref={(el) => { navBtnRefs.current[0] = el; }}
+            aria-label="Home"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
+              borderRadius: "9999px", border: "none", background: "none", cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            <HomeIcon color={COLORS.muted} size={26} filled={false} />
+            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.muted, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+              Home
+            </span>
+          </button>
+
+          <button
+            onClick={() => { setShowSettings(false); setActiveNavTab("search"); setSearchBarOpen(true); }}
+            ref={(el) => { navBtnRefs.current[1] = el; }}
+            aria-label="Search"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
+              borderRadius: "9999px", border: "none", background: "none", cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            <SearchIcon color={COLORS.muted} size={26} strokeWidth={2.1} />
+            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.muted, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+              Search
+            </span>
+          </button>
+
+          <button
+            onClick={() => { setShowSettings(false); uploadInputRef.current?.click(); }}
+            disabled={uploading}
+            ref={(el) => { navBtnRefs.current[2] = el; }}
+            aria-label="Upload"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
+              borderRadius: "9999px", border: "none", background: "none",
+              cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.5 : 1,
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            <UploadIcon color={COLORS.muted} size={26} />
+            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.muted, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+              {uploading ? "Uploading" : "Upload"}
+            </span>
+          </button>
+
+          <button
+            onTouchStart={handleProfileTouchStart}
+            onTouchEnd={handleProfileTouchEnd}
+            onTouchCancel={handleProfileTouchEnd}
+            ref={(el) => { navBtnRefs.current[3] = el; }}
+            aria-label="Profile"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
+              borderRadius: "9999px", border: "none", background: "none", cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            <PersonIcon color={COLORS.muted} size={26} strokeWidth={2.1} />
+            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.muted, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+              Profile
+            </span>
+          </button>
+        </div>
+
+        {/* amber row -- clipped to the live pill, same p.x/p.width as the pill itself so it can't drift out of sync */}
+        <div
+          ref={amberRowRef}
+          style={{
+            position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+            display: "flex", alignItems: "center", justifyContent: "space-around",
+            padding: "0 0.4rem", boxSizing: "border-box",
+            pointerEvents: "none", zIndex: 3,
+            clipPath: "inset(0 100% 0 0 round 9999px)",
+          }}
+        >
+          <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
+            <HomeIcon color={COLORS.brass} size={26} filled={true} />
+            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.brass, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Home</span>
+          </div>
+          <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
+            <SearchIcon color={COLORS.brass} size={26} strokeWidth={2.6} />
+            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.brass, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Search</span>
+          </div>
+          <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
+            <UploadIcon color={COLORS.brass} size={26} />
+            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.brass, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>{uploading ? "Uploading" : "Upload"}</span>
+          </div>
+          <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%" }}>
+            <PersonIcon color={COLORS.brass} size={26} strokeWidth={2.6} />
+            <span style={{ fontSize: "0.66rem", fontWeight: 700, color: COLORS.brass, maxHeight: showNavLabels ? "14px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Profile</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Profile switcher overlay -- placeholder, replaced by the full avatar grid next */}
+      {showProfileSwitcher && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 70 }}
+          onClick={() => setShowProfileSwitcher(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: COLORS.elevated, borderRadius: "20px", padding: "2rem", maxWidth: "320px", textAlign: "center", border: `1px solid ${COLORS.border}` }}
+          >
+            <p style={{ margin: "0 0 1rem", fontSize: "0.95rem", color: COLORS.text }}>
+              Profile switcher coming soon.
+            </p>
+            <button
+              onClick={() => setShowProfileSwitcher(false)}
+              style={{ padding: "0.6rem 1.4rem", borderRadius: "999px", background: COLORS.brass, border: "none", color: "#1A1305", fontWeight: 600, cursor: "pointer" }}
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
