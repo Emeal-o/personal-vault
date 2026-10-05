@@ -83,6 +83,8 @@ const COLORS = {
 };
 
 const FONT_MONO = "ui-monospace, 'SF Mono', monospace";
+const NAV_PILL_WIDTH = 60;
+const NAV_PILL_HEIGHT = 52;
 
 function KeyholeIcon({ unlocked, color }: { unlocked: boolean; color: string }) {
   return (
@@ -567,33 +569,25 @@ export default function Dashboard() {
   const profileLongPressFiredRef = useRef(false);
   const [showNavLabels, setShowNavLabels] = useState(true);
   const [activeNavTab, setActiveNavTab] = useState<"home" | "search" | "profile">("home");
+  const [pressedNavIndex, setPressedNavIndex] = useState<number | null>(null);
   const lastScrollYRef = useRef(0);
   const navBarRef = useRef<HTMLDivElement>(null);
   const navBtnRefs = useRef<(HTMLButtonElement | null)[]>([null, null, null, null]);
-  const navActiveItemRefs = useRef<(HTMLDivElement | null)[]>([null, null, null, null]);
   const pillRef = useRef<HTMLDivElement>(null);
   const pillGlowRef = useRef<HTMLDivElement>(null);
-  const amberRowRef = useRef<HTMLDivElement>(null);
   const navMetricsUpdaterRef = useRef<() => void>(() => {});
   const suppressNavClickRef = useRef(false);
   const suppressNavClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const physicsRef = useRef({
     position: { value: 0, velocity: 0 },
-    positionVelocity: { value: 0, velocity: 0 },
-    press: { value: 0, velocity: 0 },
-    scaleX: { value: 1, velocity: 0 },
-    scaleY: { value: 1, velocity: 0 },
     panel: { value: 0, velocity: 0 },
     trackY: { value: 0, velocity: 0 },
-    trackX: { value: 1, velocity: 0 },
-    trackPress: { value: 1, velocity: 0 },
     glow: { value: 0, velocity: 0 },
     targetIndex: 0,
-    pressTarget: 0,
-    shapeTarget: 1,
     releasePending: false,
     returnAfterRelease: false,
     dragging: false,
+    dragStarted: false,
     pointerId: null as number | null,
     downX: 0,
     downY: 0,
@@ -603,12 +597,12 @@ export default function Dashboard() {
     startIndex: 0,
     startPanel: 0,
     maxMoved: 0,
+    startOnButton: false,
     originX: 0,
     barWidth: 0,
     barHeight: 72,
     slotWidth: 0,
     dragSlotWidth: 0,
-    capsuleWidth: 0,
     centers: [] as number[],
     raf: 0,
     lastTime: 0,
@@ -623,10 +617,9 @@ export default function Dashboard() {
     const buttons = navBtnRefs.current;
     if (!bar || buttons.some((button) => !button)) return null;
     const barRect = bar.getBoundingClientRect();
-    const horizontalScale = Math.max(physicsRef.current.trackX.value, 0.001);
     const centers = buttons.map((button) => {
       const rect = button!.getBoundingClientRect();
-      return (rect.left + rect.width / 2 - barRect.left) / horizontalScale;
+      return rect.left + rect.width / 2 - barRect.left;
     });
     const slotWidth = centers.length > 1
       ? (centers[centers.length - 1] - centers[0]) / (centers.length - 1)
@@ -643,43 +636,24 @@ export default function Dashboard() {
     const fraction = position - lowerIndex;
     const center = p.centers[lowerIndex] +
       (p.centers[upperIndex] - p.centers[lowerIndex]) * fraction;
-    const speed = p.positionVelocity.value / 10;
-    const pillScaleX = p.scaleX.value / (1 - Math.max(-0.2, Math.min(0.2, speed * 0.75)));
-    const pillScaleY = p.scaleY.value * (1 - Math.max(-0.2, Math.min(0.2, speed * 0.25)));
-    const pillWidth = p.capsuleWidth * pillScaleX;
-    const pillHeight = (p.barHeight - 10) * pillScaleY;
-    const left = center - pillWidth / 2;
-    const right = p.barWidth - (center + pillWidth / 2);
-    const top = (p.barHeight - pillHeight) / 2;
+    const pillLeft = center - NAV_PILL_WIDTH / 2;
+    const top = (p.barHeight - NAV_PILL_HEIGHT) / 2;
     const panelOffset = jellyPanelOffset(p.panel.value, p.barWidth);
 
     if (navBarRef.current) {
       navBarRef.current.style.transform =
-        `translateX(calc(-50% + ${panelOffset}px)) translateY(${p.trackY.value}px) scaleX(${p.trackX.value}) scaleY(${p.trackPress.value})`;
-      navBarRef.current.style.transformOrigin = `${p.originX}px 50%`;
+        `translateX(calc(-50% + ${panelOffset}px)) translateY(${p.trackY.value}px)`;
     }
     if (pillRef.current) {
-      pillRef.current.style.width = `${p.capsuleWidth}px`;
       pillRef.current.style.transform =
-        `translateX(${center - p.capsuleWidth / 2}px) scale(${pillScaleX}, ${pillScaleY})`;
-    }
-    if (amberRowRef.current) {
-      amberRowRef.current.style.clipPath = `inset(${top}px ${right}px ${top}px ${left}px round 9999px)`;
+        `translateX(${pillLeft}px) translateY(-50%)`;
     }
     if (pillGlowRef.current) {
-      const pillLeft = center - pillWidth / 2;
       const glowX = p.originX - pillLeft;
       const glowY = p.downY - top;
       pillGlowRef.current.style.opacity = String(p.glow.value);
       pillGlowRef.current.style.background =
         `radial-gradient(circle 150px at ${glowX}px ${glowY}px, rgba(240,168,62,0.18), transparent 72%)`;
-    }
-    for (let index = 0; index < 4; index++) {
-      const coverage = Math.max(0, 1 - Math.abs(p.position.value - index));
-      const scale = 1 + 0.2 * p.press.value * coverage;
-      const transform = `scale(${scale})`;
-      if (navBtnRefs.current[index]) navBtnRefs.current[index]!.style.transform = transform;
-      if (navActiveItemRefs.current[index]) navActiveItemRefs.current[index]!.style.transform = transform;
     }
   }
 
@@ -688,31 +662,17 @@ export default function Dashboard() {
     const dt = p.lastTime ? Math.min((now - p.lastTime) / 1000, 0.064) : 0.016;
     p.lastTime = now;
     advanceJellySpring(p.position, p.targetIndex, 1000, 1, dt);
-    advanceJellySpring(p.positionVelocity, p.dragging ? p.position.velocity / 3 : 0, 300, 0.5, dt);
     if (!p.dragging) {
       advanceJellySpring(p.panel, 0, 300, 1, dt);
       advanceJellySpring(p.trackY, 0, 240 / 0.9, 18 / (2 * Math.sqrt(240 * 0.9)), dt);
-      advanceJellySpring(p.trackX, 1, 240 / 0.9, 18 / (2 * Math.sqrt(240 * 0.9)), dt);
     }
     if (p.releasePending && Math.abs(p.position.value - p.targetIndex) < 3 * 0.025) {
       p.releasePending = false;
-      p.pressTarget = 0;
-      p.shapeTarget = 1;
       if (p.returnAfterRelease) {
         p.returnAfterRelease = false;
         p.targetIndex = tabIndexFor(activeNavTab);
       }
     }
-    advanceJellySpring(p.press, p.pressTarget, 1000, 1, dt);
-    advanceJellySpring(p.scaleX, p.shapeTarget, 250, 0.6, dt);
-    advanceJellySpring(p.scaleY, p.shapeTarget, 250, 0.7, dt);
-    advanceJellySpring(
-      p.trackPress,
-      p.dragging ? 1.025 : 1,
-      240 / 0.9,
-      18 / (2 * Math.sqrt(240 * 0.9)),
-      dt,
-    );
     advanceJellySpring(
       p.glow,
       p.dragging ? 1 : 0,
@@ -725,14 +685,8 @@ export default function Dashboard() {
       Math.abs(spring.value - target) < 0.0001 && Math.abs(spring.velocity) < 0.0001;
     const running = p.dragging || p.releasePending ||
       !settled(p.position, p.targetIndex) ||
-      !settled(p.positionVelocity, 0) ||
-      !settled(p.press, p.pressTarget) ||
-      !settled(p.scaleX, 1) ||
-      !settled(p.scaleY, 1) ||
       !settled(p.panel, 0) ||
       !settled(p.trackY, 0) ||
-      !settled(p.trackX, 1) ||
-      !settled(p.trackPress, 1) ||
       !settled(p.glow, 0);
     if (running) {
       p.raf = requestAnimationFrame(stepPhysics);
@@ -756,7 +710,6 @@ export default function Dashboard() {
     p.barHeight = metrics.barHeight;
     p.centers = metrics.centers;
     p.slotWidth = metrics.slotWidth;
-    p.capsuleWidth = metrics.slotWidth;
     if (!p.dragging) {
       p.targetIndex = tabIndexFor(activeNavTab);
       p.originX = p.barWidth / 2;
@@ -869,35 +822,32 @@ export default function Dashboard() {
     p.barHeight = metrics.barHeight;
     p.centers = metrics.centers;
     p.slotWidth = metrics.slotWidth;
-    p.dragSlotWidth = metrics.slotWidth * Math.max(p.trackX.value, 0.001);
-    p.capsuleWidth = metrics.slotWidth;
-    p.startIndex = nearestIndex(e.clientX);
+    p.dragSlotWidth = metrics.slotWidth;
+    const hitIndex = navBtnRefs.current.findIndex((button) => button?.contains(e.target as Node));
+    p.startIndex = hitIndex >= 0 ? hitIndex : nearestIndex(e.clientX);
+    p.startOnButton = hitIndex >= 0;
     p.pointerId = e.pointerId;
     p.startX = e.clientX;
     p.startClientY = e.clientY;
     const barRect = navBarRef.current?.getBoundingClientRect();
-    p.downX = barRect
-      ? (e.clientX - barRect.left) / Math.max(p.trackX.value, 0.001)
-      : 0;
-    p.downY = barRect
-      ? (e.clientY - barRect.top) / Math.max(p.trackPress.value, 0.001)
-      : 0;
+    p.downX = barRect ? e.clientX - barRect.left : 0;
+    p.downY = barRect ? e.clientY - barRect.top : 0;
     p.startY = p.trackY.value;
     p.startPanel = p.panel.value;
     p.originX = Math.max(0, Math.min(p.barWidth, p.downX));
     p.maxMoved = 0;
     p.dragging = true;
+    p.dragStarted = false;
     p.targetIndex = p.startIndex;
-    p.pressTarget = 1;
-    p.shapeTarget = 1.3;
     p.releasePending = false;
     p.returnAfterRelease = false;
+    setPressedNavIndex(p.startIndex);
     kickPhysics();
 
     if (p.startIndex === 3) {
       const pointerId = e.pointerId;
       profileLongPressTimerRef.current = setTimeout(() => {
-        if (physicsRef.current.pointerId === pointerId && physicsRef.current.maxMoved <= 8) {
+        if (physicsRef.current.pointerId === pointerId && physicsRef.current.maxMoved <= MOVE_THRESHOLD_PX) {
           profileLongPressFiredRef.current = true;
           setShowProfileSwitcher(true);
         }
@@ -905,7 +855,10 @@ export default function Dashboard() {
     }
 
     try {
-      e.currentTarget.setPointerCapture(e.pointerId);
+      const captureTarget = p.startOnButton
+        ? navBtnRefs.current[p.startIndex]
+        : e.currentTarget;
+      captureTarget?.setPointerCapture(e.pointerId);
     } catch {
       // Some browsers release the pointer before capture can be requested.
     }
@@ -917,17 +870,19 @@ export default function Dashboard() {
     const dx = e.clientX - p.startX;
     const dy = e.clientY - p.startClientY;
     p.maxMoved = Math.max(p.maxMoved, Math.abs(dx), Math.abs(dy));
-    if (p.maxMoved > 8) clearProfileLongPress();
+    if (p.maxMoved > MOVE_THRESHOLD_PX) {
+      p.dragStarted = true;
+      clearProfileLongPress();
+      setPressedNavIndex(nearestIndex(e.clientX));
 
-    p.targetIndex = Math.max(0, Math.min(3, p.startIndex + dx / p.dragSlotWidth));
-    p.panel.value = p.startPanel + dx;
-    p.panel.velocity = 0;
-    p.trackY.value = p.startY + jellyRubberBand(dy, p.barHeight) * 0.25;
-    p.trackY.velocity = 0;
-    p.trackX.value = 1 - Math.min(Math.abs(dy) / 700, 1) * 0.08;
-    p.trackX.velocity = 0;
-    p.originX = Math.max(0, Math.min(p.barWidth, p.downX + dx));
-    kickPhysics();
+      p.targetIndex = Math.max(0, Math.min(3, p.startIndex + dx / p.dragSlotWidth));
+      p.panel.value = p.startPanel + dx;
+      p.panel.velocity = 0;
+      p.trackY.value = p.startY + jellyRubberBand(dy, p.barHeight) * 0.25;
+      p.trackY.velocity = 0;
+      p.originX = Math.max(0, Math.min(p.barWidth, p.downX + dx));
+      kickPhysics();
+    }
   }
 
   function handleNavPointerUp(e: React.PointerEvent<HTMLDivElement>) {
@@ -935,20 +890,23 @@ export default function Dashboard() {
     if (!p.dragging || p.pointerId !== e.pointerId) return;
     clearProfileLongPress();
     const longPress = profileLongPressFiredRef.current && p.startIndex === 3;
-    const index = p.maxMoved < 4
+    const didDrag = p.dragStarted;
+    const index = !didDrag
       ? p.startIndex
       : Math.max(0, Math.min(3, Math.floor(p.targetIndex + 0.5)));
 
     p.dragging = false;
+    p.dragStarted = false;
     p.pointerId = null;
     p.targetIndex = longPress ? tabIndexFor(activeNavTab) : index;
     p.releasePending = true;
     p.returnAfterRelease = !longPress && index === 2;
-    p.pressTarget = 1;
-    p.shapeTarget = 1.3;
-    armNavClickSuppression();
+    setPressedNavIndex(null);
+    if (longPress || didDrag || !p.startOnButton) {
+      armNavClickSuppression();
+    }
     kickPhysics();
-    if (!longPress) activateNavIndex(index);
+    if (!longPress && (didDrag || !p.startOnButton)) activateNavIndex(index);
   }
 
   function handleNavPointerCancel(e: React.PointerEvent<HTMLDivElement>) {
@@ -956,12 +914,12 @@ export default function Dashboard() {
     if (!p.dragging || p.pointerId !== e.pointerId) return;
     clearProfileLongPress();
     p.dragging = false;
+    p.dragStarted = false;
     p.pointerId = null;
     p.targetIndex = tabIndexFor(activeNavTab);
     p.releasePending = true;
     p.returnAfterRelease = false;
-    p.pressTarget = 1;
-    p.shapeTarget = 1.3;
+    setPressedNavIndex(null);
     profileLongPressFiredRef.current = false;
     kickPhysics();
   }
@@ -4344,7 +4302,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Bottom navigation bar -- floating pill, Nuvio-style jelly physics + masked color reveal */}
+      {/* Bottom navigation bar -- floating capsule with direct buttons and drag support */}
       <div
         ref={navBarRef}
         role="navigation"
@@ -4374,22 +4332,22 @@ export default function Dashboard() {
           border: "1px solid rgba(255,255,255,0.24)",
           boxShadow: "0 8px 28px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.18)",
           transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), height 0.35s cubic-bezier(0.4,0,0.2,1)",
-          overflow: "hidden",
+          overflow: "visible",
           boxSizing: "border-box",
           touchAction: "none",
           userSelect: "none",
           WebkitUserSelect: "none",
         }}
       >
-        {/* jelly pill track -- physics-driven, sits behind both label layers */}
+        {/* Fixed-size jelly capsule behind the single interactive icon-and-label row */}
         <div
           ref={pillRef}
           style={{
             position: "absolute",
-            top: "5px",
-            bottom: "5px",
+            top: "50%",
             left: 0,
-            width: "80px",
+            width: NAV_PILL_WIDTH,
+            height: NAV_PILL_HEIGHT,
             borderRadius: "9999px",
             background: "rgba(255,255,255,0.17)",
             border: "1px solid rgba(255,255,255,0.10)",
@@ -4398,8 +4356,9 @@ export default function Dashboard() {
             boxSizing: "border-box",
             pointerEvents: "none",
             zIndex: 1,
-            willChange: "transform, width",
+            willChange: "transform",
             transformOrigin: "center center",
+            transform: "translateX(0) translateY(-50%)",
           }}
         >
           <div
@@ -4415,22 +4374,26 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* layer 1: muted row -- always visible, real interactive buttons */}
+        {/* One interactive icon-and-label row; the shared press index drives magnification. */}
         <div style={{ position: "relative", zIndex: 2, display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "space-around" }}>
           <button
             onClick={handleHomeClick}
             ref={(el) => { navBtnRefs.current[0] = el; }}
             type="button"
             aria-label="Home"
+            aria-current={activeNavTab === "home" ? "page" : undefined}
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
               borderRadius: "9999px", border: "none", background: "none", cursor: "pointer",
               WebkitTapHighlightColor: "transparent", transformOrigin: "center center", willChange: "transform",
+              transform: pressedNavIndex === 0 ? "scale(1.25)" : "scale(1)",
+              transition: "transform 150ms cubic-bezier(0.2,0.8,0.2,1)",
+              position: "relative", zIndex: pressedNavIndex === 0 ? 4 : 2,
             }}
           >
-            <HomeIcon color={COLORS.muted} size={32} filled={false} />
-            <span style={{ fontSize: "1rem", fontWeight: 500, color: COLORS.muted, maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+            <HomeIcon color={activeNavTab === "home" ? "#fff" : COLORS.muted} size={32} filled={activeNavTab === "home"} />
+            <span style={{ fontSize: "1rem", fontWeight: activeNavTab === "home" ? 700 : 500, color: activeNavTab === "home" ? "#fff" : COLORS.muted, maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
               Home
             </span>
           </button>
@@ -4440,15 +4403,19 @@ export default function Dashboard() {
             ref={(el) => { navBtnRefs.current[1] = el; }}
             type="button"
             aria-label="Search"
+            aria-current={activeNavTab === "search" ? "page" : undefined}
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
               borderRadius: "9999px", border: "none", background: "none", cursor: "pointer",
               WebkitTapHighlightColor: "transparent", transformOrigin: "center center", willChange: "transform",
+              transform: pressedNavIndex === 1 ? "scale(1.25)" : "scale(1)",
+              transition: "transform 150ms cubic-bezier(0.2,0.8,0.2,1)",
+              position: "relative", zIndex: pressedNavIndex === 1 ? 4 : 2,
             }}
           >
-            <SearchIcon color={COLORS.muted} size={32} strokeWidth={2.1} />
-            <span style={{ fontSize: "1rem", fontWeight: 500, color: COLORS.muted, maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+            <SearchIcon color={activeNavTab === "search" ? "#fff" : COLORS.muted} size={32} strokeWidth={activeNavTab === "search" ? 2.6 : 2.1} />
+            <span style={{ fontSize: "1rem", fontWeight: activeNavTab === "search" ? 700 : 500, color: activeNavTab === "search" ? "#fff" : COLORS.muted, maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
               Search
             </span>
           </button>
@@ -4465,6 +4432,9 @@ export default function Dashboard() {
               borderRadius: "9999px", border: "none", background: "none",
               cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.5 : 1,
               WebkitTapHighlightColor: "transparent", transformOrigin: "center center", willChange: "transform",
+              transform: pressedNavIndex === 2 ? "scale(1.25)" : "scale(1)",
+              transition: "transform 150ms cubic-bezier(0.2,0.8,0.2,1)",
+              position: "relative", zIndex: pressedNavIndex === 2 ? 4 : 2,
             }}
           >
             <UploadIcon color={COLORS.muted} size={32} />
@@ -4478,47 +4448,22 @@ export default function Dashboard() {
             ref={(el) => { navBtnRefs.current[3] = el; }}
             type="button"
             aria-label="Profile"
+            aria-current={activeNavTab === "profile" ? "page" : undefined}
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               gap: "0.05rem", flex: 1, height: "calc(100% - 10px)", padding: 0,
               borderRadius: "9999px", border: "none", background: "none", cursor: "pointer",
               WebkitTapHighlightColor: "transparent", transformOrigin: "center center", willChange: "transform",
+              transform: pressedNavIndex === 3 ? "scale(1.25)" : "scale(1)",
+              transition: "transform 150ms cubic-bezier(0.2,0.8,0.2,1)",
+              position: "relative", zIndex: pressedNavIndex === 3 ? 4 : 2,
             }}
           >
-            <PersonIcon color={COLORS.muted} size={32} strokeWidth={2.1} />
-            <span style={{ fontSize: "1rem", fontWeight: 500, color: COLORS.muted, maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
+            <PersonIcon color={activeNavTab === "profile" ? "#fff" : COLORS.muted} size={32} strokeWidth={activeNavTab === "profile" ? 2.6 : 2.1} />
+            <span style={{ fontSize: "1rem", fontWeight: activeNavTab === "profile" ? 700 : 500, color: activeNavTab === "profile" ? "#fff" : COLORS.muted, maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden", transition: "max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease" }}>
               Profile
             </span>
           </button>
-        </div>
-
-        {/* amber row -- clipped to the live pill, same p.x/p.width as the pill itself so it can't drift out of sync */}
-        <div
-          ref={amberRowRef}
-          style={{
-            position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-            display: "flex", alignItems: "center", justifyContent: "space-around",
-            padding: "0 0.4rem", boxSizing: "border-box",
-            pointerEvents: "none", zIndex: 3,
-            clipPath: "inset(0 100% 0 0 round 9999px)",
-          }}
-        >
-          <div ref={(el) => { navActiveItemRefs.current[0] = el; }} aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%", transformOrigin: "center center", willChange: "transform" }}>
-            <HomeIcon color="#fff" size={32} filled={true} />
-            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Home</span>
-          </div>
-          <div ref={(el) => { navActiveItemRefs.current[1] = el; }} aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%", transformOrigin: "center center", willChange: "transform" }}>
-            <SearchIcon color="#fff" size={32} strokeWidth={2.6} />
-            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Search</span>
-          </div>
-          <div ref={(el) => { navActiveItemRefs.current[2] = el; }} aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%", transformOrigin: "center center", willChange: "transform" }}>
-            <UploadIcon color="#fff" size={32} />
-            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>{uploading ? "Uploading" : "Upload"}</span>
-          </div>
-          <div ref={(el) => { navActiveItemRefs.current[3] = el; }} aria-hidden="true" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.05rem", flex: 1, height: "100%", transformOrigin: "center center", willChange: "transform" }}>
-            <PersonIcon color="#fff" size={32} strokeWidth={2.6} />
-            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#fff", maxHeight: showNavLabels ? "22px" : "0px", opacity: showNavLabels ? 1 : 0, overflow: "hidden" }}>Profile</span>
-          </div>
         </div>
       </div>
 

@@ -1,1 +1,2 @@
 - [Managed artifact workflow cleanup](managed-artifact-workflow-cleanup.md) — remove obsolete artifact services through validated manifests, then clear any orphaned processes.
+- [Authenticated preview verification](preview-auth-verification.md) — an initial dashboard frame may be server-rendered before the PIN gate; screenshots alone do not prove interactions work.
