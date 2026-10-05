@@ -1,0 +1,19 @@
+Two fixes needed on the bottom nav in `artifacts/next-starter/app/dashboard/page.tsx`:
+
+1. Pill size is wrong. Before touching the code, find Nuvio's actual measurements from their public source (NuvioMedia/NuvioMobile on GitHub — look at FloatingNavigationBar.android.kt, JellyTabs.kt, and GlassBarSurface.kt). Pull the exact values for:
+   - the outer capsule/pill width, height, and corner radius (dp)
+   - the icon size inside it (dp)
+   - how much the icon+label inflate on press and on drag — the actual scale factor(s) used (e.g. press scale vs drag-magnify scale, if they differ), plus the spring/animation constants (stiffness, damping, or duration/easing) that control how fast it inflates and settles
+   Use those exact values (converted to px where needed) instead of guessing. State the dp/scale/spring values you found and the conversions you used before applying them.
+
+2. Magnify is completely broken — it never changes from Home no matter which tab is pressed or dragged, and currently just snaps to a flat scale with no spring feel. Fix the logic with this exact approach, using the real Nuvio scale/spring values from step 1 (not an arbitrary number):
+
+1. Add (or fix) a pressedIndex state (useState<number | null>(null)), not a ref — it must be React state so the magnify style actually re-renders when it changes.
+2. Give each of the 4 tab buttons a ref so you can read their live bounding boxes (an array ref, e.g. tabRefs.current[i]).
+3. Write one function, getTabIndexAtX(clientX: number), that loops over the 4 tab button refs, calls getBoundingClientRect() on each, and returns the index of whichever tab's rect contains that x-coordinate (or whichever center is closest, as a fallback). Log this function's return value to the console temporarily so it's verifiable it's not stuck.
+4. On pointerdown on the nav bar container: call setPressedIndex(getTabIndexAtX(e.clientX)) immediately, and apply Nuvio's press-scale value to that tab's icon+label.
+5. On pointermove on the nav bar container (only while a pointer is actively down — track an isPressedRef/isDraggingRef boolean): call setPressedIndex(getTabIndexAtX(e.clientX)) on every move event, so the inflated icon visibly jumps to whichever tab the finger is currently over, using Nuvio's drag-magnify scale value.
+6. On pointerup/pointercancel: read the final pressedIndex, fire that tab's action (navigate/switch), animate the icon back down to scale(1) using Nuvio's release spring/easing (not an instant snap), and make that tab's label bold since it's now active. Reset setPressedIndex(null) after.
+7. Each tab icon+label's scale/transition style must read directly off pressedIndex state — not off a separate variable — and use a CSS transition or spring that matches Nuvio's actual timing, not a flat linear one.
+
+Before saying this is fixed, state the exact dp/scale/spring values pulled from Nuvio's source, and describe what the console log printed while testing an actual press-and-slide gesture across at least 3 tabs, including whether the inflate/deflate felt springy (not instant) on release.
