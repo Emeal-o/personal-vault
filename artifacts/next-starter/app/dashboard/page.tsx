@@ -574,6 +574,7 @@ export default function Dashboard() {
   const pillRef = useRef<HTMLDivElement>(null);
   const pillGlowRef = useRef<HTMLDivElement>(null);
   const amberRowRef = useRef<HTMLDivElement>(null);
+  const navMetricsUpdaterRef = useRef<() => void>(() => {});
   const suppressNavClickRef = useRef(false);
   const suppressNavClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const physicsRef = useRef({
@@ -606,6 +607,7 @@ export default function Dashboard() {
     barWidth: 0,
     barHeight: 72,
     slotWidth: 0,
+    dragSlotWidth: 0,
     capsuleWidth: 0,
     centers: [] as number[],
     raf: 0,
@@ -621,14 +623,15 @@ export default function Dashboard() {
     const buttons = navBtnRefs.current;
     if (!bar || buttons.some((button) => !button)) return null;
     const barRect = bar.getBoundingClientRect();
+    const horizontalScale = Math.max(physicsRef.current.trackX.value, 0.001);
     const centers = buttons.map((button) => {
       const rect = button!.getBoundingClientRect();
-      return rect.left + rect.width / 2 - barRect.left;
+      return (rect.left + rect.width / 2 - barRect.left) / horizontalScale;
     });
     const slotWidth = centers.length > 1
       ? (centers[centers.length - 1] - centers[0]) / (centers.length - 1)
       : (barRect.width - 8) / 4;
-    return { barWidth: barRect.width, barHeight: barRect.height, centers, slotWidth };
+    return { barWidth: bar.offsetWidth, barHeight: bar.offsetHeight, centers, slotWidth };
   }
 
   function applyPillStyle() {
@@ -762,19 +765,22 @@ export default function Dashboard() {
     kickPhysics();
   }
 
+  navMetricsUpdaterRef.current = readAndApplyNavMetrics;
+
   useEffect(() => {
-    readAndApplyNavMetrics();
-    const retry = window.setTimeout(readAndApplyNavMetrics, 400);
+    const update = () => navMetricsUpdaterRef.current();
+    update();
+    const retry = window.setTimeout(update, 400);
     const bar = navBarRef.current;
     const observer = typeof ResizeObserver !== "undefined" && bar
-      ? new ResizeObserver(readAndApplyNavMetrics)
+      ? new ResizeObserver(update)
       : null;
     observer?.observe(bar!);
-    window.addEventListener("resize", readAndApplyNavMetrics);
+    window.addEventListener("resize", update);
     return () => {
       window.clearTimeout(retry);
       observer?.disconnect();
-      window.removeEventListener("resize", readAndApplyNavMetrics);
+      window.removeEventListener("resize", update);
     };
   }, [activeNavTab, showNavLabels]);
 
@@ -811,11 +817,11 @@ export default function Dashboard() {
       suppressNavClickRef.current = false;
       profileLongPressFiredRef.current = false;
       suppressNavClickTimerRef.current = null;
-    }, 300);
+    }, 1000);
   }
 
   function handleNavClickCapture(e: React.MouseEvent<HTMLDivElement>) {
-    if (!suppressNavClickRef.current) return;
+    if (!suppressNavClickRef.current || e.detail === 0) return;
     e.preventDefault();
     e.stopPropagation();
     suppressNavClickRef.current = false;
@@ -863,13 +869,19 @@ export default function Dashboard() {
     p.barHeight = metrics.barHeight;
     p.centers = metrics.centers;
     p.slotWidth = metrics.slotWidth;
+    p.dragSlotWidth = metrics.slotWidth * Math.max(p.trackX.value, 0.001);
     p.capsuleWidth = metrics.slotWidth;
     p.startIndex = nearestIndex(e.clientX);
     p.pointerId = e.pointerId;
     p.startX = e.clientX;
     p.startClientY = e.clientY;
-    p.downX = e.clientX - (navBarRef.current?.getBoundingClientRect().left ?? 0);
-    p.downY = e.clientY - (navBarRef.current?.getBoundingClientRect().top ?? 0);
+    const barRect = navBarRef.current?.getBoundingClientRect();
+    p.downX = barRect
+      ? (e.clientX - barRect.left) / Math.max(p.trackX.value, 0.001)
+      : 0;
+    p.downY = barRect
+      ? (e.clientY - barRect.top) / Math.max(p.trackPress.value, 0.001)
+      : 0;
     p.startY = p.trackY.value;
     p.startPanel = p.panel.value;
     p.originX = Math.max(0, Math.min(p.barWidth, p.downX));
@@ -901,13 +913,13 @@ export default function Dashboard() {
 
   function handleNavPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     const p = physicsRef.current;
-    if (!p.dragging || p.pointerId !== e.pointerId || !p.slotWidth) return;
+    if (!p.dragging || p.pointerId !== e.pointerId || !p.dragSlotWidth) return;
     const dx = e.clientX - p.startX;
     const dy = e.clientY - p.startClientY;
     p.maxMoved = Math.max(p.maxMoved, Math.abs(dx), Math.abs(dy));
     if (p.maxMoved > 8) clearProfileLongPress();
 
-    p.targetIndex = Math.max(0, Math.min(3, p.startIndex + dx / p.slotWidth));
+    p.targetIndex = Math.max(0, Math.min(3, p.startIndex + dx / p.dragSlotWidth));
     p.panel.value = p.startPanel + dx;
     p.panel.velocity = 0;
     p.trackY.value = p.startY + jellyRubberBand(dy, p.barHeight) * 0.25;
