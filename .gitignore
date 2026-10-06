@@ -56,3 +56,4 @@ Thumbs.db
 
 .next/
 **/.next/artifacts/mobile/package-lock.json
+.aider*
