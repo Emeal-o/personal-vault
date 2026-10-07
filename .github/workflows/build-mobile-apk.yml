@@ -32,7 +32,16 @@ jobs:
         run: npm --version
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund || npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund --loglevel verbose || npm install --no-audit --no-fund --loglevel verbose
+
+      - name: Show npm debug log on failure
+        if: failure()
+        run: |
+          echo "---- npm debug logs ----"
+          for f in /home/runner/.npm/_logs/*-debug-0.log; do
+            echo "==== $f ===="
+            tail -n 200 "$f"
+          done
 
       - name: Sync Capacitor + build APK
         run: npx --yes --package=@capacitor/cli cap sync android && cd android && chmod +x gradlew && ./gradlew assembleDebug
