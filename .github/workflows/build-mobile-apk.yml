@@ -28,8 +28,11 @@ jobs:
       - name: Upgrade npm
         run: npm install -g npm@10
 
+      - name: Print npm version
+        run: npm --version
+
       - name: Install dependencies
-        run: npm install || npm install
+        run: npm install --no-audit --no-fund || npm install --no-audit --no-fund
 
       - name: Sync Capacitor + build APK
         run: npx --yes --package=@capacitor/cli cap sync android && cd android && chmod +x gradlew && ./gradlew assembleDebug
